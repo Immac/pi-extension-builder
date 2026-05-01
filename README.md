@@ -10,20 +10,22 @@ A pi.dev extension that helps LLMs create, validate, and install pi extensions t
 
 ## ✨ What is this?
 
-Think of it as a **"factory for pi extensions"** — but smarter. Instead of manually scaffolding extensions, LLMs can use this tool to:
+Think of it as a **"factory for pi extensions"** — but smarter. This extension itself is built for managing the extension lifecycle: planning, scaffolding, validating, and installing other pi extensions.
+
+Instead of manually managing extension files and running shell commands, LLMs use the `extension_creator` **tool** to:
 
 <table>
 <tr>
 <td width="50%">
 
-### 🎯 **Smart Classification**
-Automatically identifies what type of extension you need based on natural language goals
+### 🎯 **Intelligent Routing**
+Infers extension stage and starting mode from natural language requests
 
 </td>
 <td width="50%">
 
-### 🛠️ **Guided Creation**
-Step-by-step extension building with validation and best practices built-in
+### 🛠️ **Guided Workflows**
+Step-by-step extension development with validation built-in at every stage
 
 </td>
 </tr>
@@ -31,13 +33,13 @@ Step-by-step extension building with validation and best practices built-in
 <td width="50%">
 
 ### ✅ **Built-in Validation**
-Ensures extensions follow pi's architecture guidelines
+Ensures extensions follow pi's architecture guidelines before installation
 
 </td>
 <td width="50%">
 
-### 📦 **Easy Installation**
-Seamlessly install extensions from any workspace into pi
+### 📦 **Unified Lifecycle**
+Single tool manages planning → scaffolding → review → validation → install/update/remove
 
 </td>
 </tr>
@@ -45,73 +47,106 @@ Seamlessly install extensions from any workspace into pi
 
 ---
 
-## 🎨 Key Principles
+## 🎨 Core Principles
 
 <div align="center">
 
 | Principle | Description |
 |-----------|-------------|
-| 🔧 **Tool-first** | Extensions created via tool calls, not commands |
-| 📁 **External-first** | Author in normal project directories |
-| 🎯 **Minimal footprint** | Single command with arguments, not many |
-| 🧹 **Clean by default** | Simplicity and reviewability always |
+| 🔧 **Tool-first** | All lifecycle operations via the `extension_creator` tool, not shell commands |
+| 📁 **External-first** | Author extensions in normal project directories, not inside pi |
+| 🧭 **Guided Routes** | Tool infers the right workflow stage and starting mode from requests |
+| ✅ **Validate Always** | Validation is mandatory before any lifecycle action |
+| 🎯 **Minimal** | One clear responsibility per extension, clean architecture |
 
 </div>
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Installation
 
-### Installation
+### Install into pi
 
 ```bash
-# Clone the repository
-git clone git@github.com:Immac/pi-extension-builder.git
-cd pi-extension-builder
-
-# Install dependencies
-npm install
-
-# Build the extension
-npm run build
-
-# Install into pi
-pi extension install .
+# From this directory, use the extension_creator tool
+extension_creator(goal="Install the pi-extension-creator", mode="install", path="/path/to/this/repo")
 ```
 
-### Or configure in your pi settings:
+Or from the command line:
 
-```json
-{
-  "pi": {
-    "extensions": ["./path/to/extension-creator/src/extensions/extension-creator"]
-  }
-}
+```bash
+# Build the extension first
+npm install && npm run build
+
+# Then use pi to install from this local directory
+# (This will invoke the extension_creator tool to manage installation)
 ```
 
 ---
 
 ## 💡 Usage
 
-### 🤖 As a Tool (Primary)
+### 🤖 Using the Tool (Primary Interface)
 
-Just tell the LLM what you want:
+The `extension_creator` tool is your interface to the entire lifecycle:
 
-```yaml
-User: "Create an extension that blocks dangerous file writes"
-LLM: Calls extension-creator tool → validates → scaffolds → installs
+#### Example 1: Create a new extension from scratch
 
-User: "Make an extension that adds a custom tool for git operations"
-LLM: Classifies as "tool extension" → generates code → reviews → done
+```
+User: "Create a tool extension that adds git operations"
+↓
+LLM: Calls extension_creator with goal, mode="plan", stage="idea"
+↓
+Tool: Returns architecture plan, suggested files, cautions
+↓
+LLM: Scaffolds files, implements the extension
+↓
+User: "Validate and install it"
+↓
+LLM: Calls extension_creator with mode="validate", then mode="install"
+↓
+Tool: Validates the package, runs installation, reports success
 ```
 
-### ⌨️ As Commands (Secondary)
+#### Example 2: Review and update an existing extension
 
-```bash
-/extension create <type>     # Create a new extension
-/extension install <path>    # Install from path
-/extension review <path>     # Review existing extension
 ```
+User: "Review my extension in ~/my-extension and update it"
+↓
+LLM: Calls extension_creator with path="~/my-extension", mode="review"
+↓
+Tool: Validates the extension, reports status
+↓
+LLM: Makes changes, runs validation again
+↓
+User: "Update the installed version"
+↓
+LLM: Calls extension_creator with mode="update", path="~/my-extension"
+↓
+Tool: Re-validates and updates the installation
+```
+
+### Tool Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `goal` | What you want to build or do |
+| `mode` | `plan` \| `scaffold` \| `review` \| `validate` \| `install` \| `update` \| `remove` \| `document` |
+| `stage` | `idea` \| `draft` \| `workspace` \| `validated` \| `installed` \| `maintenance` \| `unknown` |
+| `path` | Path to extension workspace (optional, required for most lifecycle operations) |
+| `extensionKind` | `tool` \| `command` \| `prompt` \| `provider` (auto-inferred from goal) |
+| `strict` | Enforce stricter validation and cleanup rules |
+| `note` | Additional context or special instructions |
+
+### Prompts for LLMs
+
+Three built-in prompts guide LLM behavior:
+
+| Prompt | Purpose |
+|--------|---------|
+| `/init-extension` | Quick start guide for extension creation using the tool |
+| `/create-extension` | Full end-to-end workflow for building extensions |
+| `/documentation` | Generate README and architecture docs for existing extensions |
 
 ---
 
@@ -121,18 +156,20 @@ LLM: Classifies as "tool extension" → generates code → reviews → done
 📦 pi-extension-creator/
 ├── 🎯 src/
 │   ├── 📁 extensions/
-│   │   └── extension-creator/    # The extension implementation
+│   │   └── extension-creator/    # The extension tool
 │   │       └── index.ts
-│   ├── cli.ts                     # CLI entry point
-│   ├── extension.ts               # Core logic
-│   ├── validator.ts               # Validation engine
+│   ├── extension.ts              # Tool implementation & workflow logic
+│   ├── validator.ts              # Extension package validator
 │   ├── types.ts                  # Shared types
-│   └── shims.d.ts                # Type definitions
-├── 📝 prompts/                     # LLM prompt templates
-│   ├── extension.md
-│   └── extension-full.md
-├── 📚 dist/                        # Build output (gitignored)
-├── 📖 ARCHITECTURE.md             # Detailed architecture spec
+│   └── cli.ts                    # CLI entry point
+├── 📝 prompts/                   # LLM prompt templates
+│   ├── init-extension.md         # Quick start for extension creation
+│   ├── create-extension.md       # Full end-to-end workflow
+│   └── documentation.md          # Documentation generation
+├── 📚 skills/                    # Specialized workflows
+│   └── zero-to-documented/       # Skill: Full extension creation workflow
+├── 📖 dist/                      # Build output
+├── 📄 ARCHITECTURE.md            # Detailed design specification
 ├── 📦 package.json
 └── ⚙️ tsconfig.json
 ```
@@ -162,27 +199,62 @@ LLM: Classifies as "tool extension" → generates code → reviews → done
 # Install dependencies
 npm install
 
-# Watch mode (if available)
-npm run build -- --watch
+# Build the extension
+npm run build
 
-# Validate as you work
+# Validate the package
 npm run validate
+
+# To test locally:
+# Use the extension_creator tool to install from your working directory
+extension_creator(goal="Install extension-creator for testing", mode="install", path="/path/to/this/repo")
 ```
 
 ---
 
 ## 🎭 Extension Types Supported
 
+The tool can help create these extension types:
+
 <div align="center">
 
 | Type | Icon | Description |
 |------|------|-------------|
-| **Tool** | 🔧 | Add custom tools to pi |
-| **Command** | ⌨️ | Add slash commands |
-| **Prompt** | 💬 | Inject system prompt guidance |
-| **Provider** | 🤖 | Add custom AI providers |
+| **Tool** | 🔧 | Add custom tools (like extension_creator itself) |
+| **Command** | ⌨️ | Add slash commands to pi |
+| **Prompt** | 💬 | Inject reusable prompt templates |
+| **Provider** | 🤖 | Add custom AI model providers |
 
 </div>
+
+---
+
+## 🏛️ Workflow Stages
+
+The tool understands the extension lifecycle:
+
+| Stage | Meaning | Starting Mode |
+|-------|---------|----------------|
+| `idea` | Just an idea, no code yet | `plan` |
+| `draft` | Starter scaffold created | `scaffold` |
+| `workspace` | External repo/folder exists | `review` |
+| `validated` | Package passed validation | `install` |
+| `installed` | Already in pi | `review` or `update` |
+| `maintenance` | Needs updates or removal | `update` or `remove` |
+
+---
+
+## ✅ Validation Rules
+
+Before installation, the validator checks:
+
+- ✅ Valid `package.json` with clear name and pi config
+- ✅ TypeScript source files (prefer named entrypoint over `index.ts`)
+- ✅ Explicit extension path in `src/extensions/<name>/<name>.ts`
+- ✅ Valid `tsconfig.json`
+- ✅ No conflicts with installed extensions
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed validation rules.
 
 ---
 
@@ -192,9 +264,10 @@ We follow pi's extension guidelines:
 
 - ✅ Keep it small and focused
 - ✅ One responsibility per extension
-- ✅ Minimal event hooks
+- ✅ Tool-first interface (no command sprawl)
 - ✅ Easy reviewability for LLMs
 - ✅ Clean, obvious file layout
+- ✅ Always validate before installing
 
 ### How to Contribute
 
