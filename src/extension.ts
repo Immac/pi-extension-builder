@@ -3,7 +3,7 @@ import { defineTool, type ExtensionAPI } from '@mariozechner/pi-coding-agent';
 import { validateExtensionProject } from './validator';
 import type { ValidationResult } from './types';
 
-type Mode = 'plan' | 'scaffold' | 'review' | 'validate' | 'install' | 'update' | 'remove';
+type Mode = 'plan' | 'scaffold' | 'review' | 'document' | 'validate' | 'install' | 'update' | 'remove';
 type Stage = 'idea' | 'draft' | 'workspace' | 'validated' | 'installed' | 'maintenance' | 'unknown';
 
 interface ToolParams {
@@ -36,6 +36,13 @@ interface ToolPayload {
     steps: string[];
     cautions: string[];
   };
+  documentation?: {
+    title: string;
+    instruction: string;
+    promptTemplate: string;
+    outputFiles: string[];
+    steps: string[];
+  };
   nextAction: string;
 }
 
@@ -56,7 +63,7 @@ const extensionCreatorTool = defineTool({
   parameters: Type.Object({
     mode: Type.Optional(
       Type.String({
-        description: 'plan | scaffold | review | validate | install | update | remove',
+        description: 'plan | scaffold | review | document | validate | install | update | remove',
       }),
     ),
     stage: Type.Optional(
@@ -94,6 +101,11 @@ const extensionCreatorTool = defineTool({
       ? await runPiLifecycleCommand({ mode, path, installTarget, signal, validation })
       : undefined;
 
+    // Document mode: LLM-driven documentation generation
+    const documentation = mode === 'document' && path
+      ? buildDocumentationGuidance({ path, extensionKind })
+      : undefined;
+
     const payload: ToolPayload = {
       mode,
       stage,
@@ -107,6 +119,7 @@ const extensionCreatorTool = defineTool({
       validation,
       commandResult,
       plan,
+      documentation,
       nextAction: chooseNextAction({ mode, stage, path, validation, commandResult, startMode: mode }),
     };
 
@@ -130,7 +143,7 @@ export default function extensionCreator(pi: ExtensionAPI) {
 
 function normalizeMode(value: string | undefined, stage: Stage, goal: string | undefined, path?: string): Mode {
   const candidate = value?.trim().toLowerCase();
-  if (candidate === 'plan' || candidate === 'scaffold' || candidate === 'review' || candidate === 'validate' || candidate === 'install' || candidate === 'update' || candidate === 'remove') {
+  if (candidate === 'plan' || candidate === 'scaffold' || candidate === 'review' || candidate === 'document' || candidate === 'validate' || candidate === 'install' || candidate === 'update' || candidate === 'remove') {
     return candidate;
   }
 
@@ -140,6 +153,9 @@ function normalizeMode(value: string | undefined, stage: Stage, goal: string | u
   }
 
   const lowerGoal = goal?.toLowerCase() ?? '';
+  if (lowerGoal.includes('document') || lowerGoal.includes('readme') || lowerGoal.includes('doc')) {
+    return 'document';
+  }
   if (lowerGoal.includes('remove') || lowerGoal.includes('uninstall') || lowerGoal.includes('delete')) {
     return 'remove';
   }
@@ -244,6 +260,27 @@ function buildPlan(params: { goal?: string; extensionKind: string; strict: boole
   return { title, summary, files, steps, cautions };
 }
 
+function buildDocumentationGuidance(params: { path: string; extensionKind: string }): ToolPayload['documentation'] {
+  const title = `Documentation for ${params.extensionKind}`;
+  const instruction = `Generate README.md and optionally ARCHITECTURE.md for the extension at ${params.path}. This is LLM-driven - analyze the source code and use the prompts/documentation.md template.`;
+  
+  const promptTemplate = 'prompts/documentation.md';
+  
+  const outputFiles = ['README.md', 'ARCHITECTURE.md (optional, for complex extensions)'];
+  
+  const steps = [
+    `Read the extension source files at ${params.path}`,
+    'Analyze the code structure, dependencies, and purpose',
+    'Identify the extension type (tool, command, prompt, provider)',
+    `Use the ${promptTemplate} template as guidance`,
+    'Generate README.md with appropriate badges, sections, and examples',
+    'Generate ARCHITECTURE.md only if the extension has complex architecture',
+    `Write the files to ${params.path}`,
+  ];
+
+  return { title, instruction, promptTemplate, outputFiles, steps };
+}
+
 function chooseNextAction(params: { mode: Mode; stage: Stage; path?: string; validation?: ValidationResult; commandResult?: CommandRunResult; startMode: Mode }): string {
   const stageLabel = params.stage === 'unknown' ? 'unknown' : params.stage;
 
@@ -264,6 +301,9 @@ function chooseNextAction(params: { mode: Mode; stage: Stage; path?: string; val
           ? 'Fix the reported validation errors before installation.'
           : 'Address any warnings, then install or update when ready.'
         : 'Review the returned diagnostics and refine the package structure.';
+    case 'document':
+      if (!params.path) return 'Provide a path to generate documentation for an extension.';
+      return 'Use the LLM to analyze the extension at the path and generate README.md and optionally ARCHITECTURE.md using the documentation prompt template.';
     case 'validate':
       if (!params.path) return 'Provide a path to validate an extension package.';
       return params.validation
@@ -406,6 +446,25 @@ function renderPayload(payload: ToolPayload): string {
     lines.push('Cautions:');
     for (const caution of payload.plan.cautions) {
       lines.push(`- ${caution}`);
+    }
+    lines.push('');
+  }
+
+  if (payload.documentation) {
+    lines.push(`## ${payload.documentation.title}`);
+    lines.push('');
+    lines.push(payload.documentation.instruction);
+    lines.push('');
+    lines.push('Steps:');
+    for (const step of payload.documentation.steps) {
+      lines.push(`- ${step}`);
+    }
+    lines.push('');
+    lines.push(`Prompt template: ${payload.documentation.promptTemplate}`);
+    lines.push('');
+    lines.push('Output files:');
+    for (const file of payload.documentation.outputFiles) {
+      lines.push(`- ${file}`);
     }
     lines.push('');
   }

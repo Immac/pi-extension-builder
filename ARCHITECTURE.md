@@ -10,6 +10,7 @@ The extension is intended to be called primarily as a **tool** by the LLM, not a
 
 - Help an LLM choose the right kind of pi extension for a task
 - Bootstrap a new extension from user intent
+- **Generate documentation (README, ARCHITECTURE) for extensions**
 - Keep generated extensions clean and minimal
 - Support development outside pi’s runtime folders
 - Provide a controlled install path into pi
@@ -39,7 +40,8 @@ The tool then helps the LLM:
 2. choose a clean structure
 3. generate or outline the extension
 4. review it for simplicity and correctness
-5. install it from an external workspace into pi
+5. **generate documentation (README.md, ARCHITECTURE.md)**
+6. install it from an external workspace into pi
 
 ## Core Principles
 
@@ -124,6 +126,18 @@ Responsibilities:
 - flag extra commands or redundant hooks
 - check separation of concerns
 - recommend simplifications
+
+#### Documentation Agent
+
+Responsibilities:
+
+- **LLM-driven documentation generation** (not fixed templates)
+- analyze extension source code and structure
+- generate README.md based on prompts/documentation.md template
+- generate ARCHITECTURE.md for complex extensions
+- ensure consistent style (badges, formatting, sections)
+- adapt documentation to extension type (tool, command, prompt, provider)
+- leverage LLM's understanding of context rather than rigid code
 
 #### Installer Agent
 
@@ -343,7 +357,7 @@ The main tool should act as the entrypoint for extension planning and installati
 
 - accept the user's extension goal
 - identify the extension category
-- decide whether planning, scaffolding, review, or install actions are needed
+- decide whether planning, scaffolding, review, **documentation**, or install actions are needed
 - invoke validation code before install-related actions
 - return structured guidance that the LLM can follow directly
 - avoid exposing unnecessary complexity to the interactive session
@@ -377,6 +391,7 @@ The tool should support a few clear modes so the LLM can use the same interface 
 - **plan**: analyze the request and produce an extension plan
 - **scaffold**: generate or outline a starter package structure
 - **review**: inspect an existing external extension for cleanliness and correctness
+- **document**: generate README.md and ARCHITECTURE.md using LLM analysis
 - **validate**: run code-based checks without installing
 - **install**: validate and hand off to pi’s built-in install flow
 
@@ -440,6 +455,15 @@ The main tool may delegate to a small set of focused agents.
 - block install when validation fails
 - provide structured warnings for cleanup guidance
 
+### Documentation Agent
+
+- analyze extension source code and structure
+- generate README.md using prompt templates (prompts/documentation.md)
+- generate ARCHITECTURE.md for extensions requiring design docs
+- return machine-readable documentation content
+- adapt output based on extension type and complexity
+- use LLM's contextual understanding rather than fixed code generation
+
 ## Install and Lifecycle Operations
 
 The extension should support a clean lifecycle for external development and installation.
@@ -473,10 +497,11 @@ The extension should support a clean lifecycle for external development and inst
 1. User asks for a pi extension
 2. LLM calls the main tool
 3. Tool classifies the request
-4. Tool delegates to planner/scaffold/review/install agents as needed
+4. Tool delegates to planner/scaffold/review/**document**/install agents as needed
 5. Tool returns a clean extension plan or scaffold guidance
 6. The extension is developed in an external workspace
-7. The install step places it into pi’s discovery path
+7. **Documentation is generated using LLM analysis of the codebase**
+8. The install step places it into pi’s discovery path
 
 ## Open Questions
 
@@ -491,4 +516,4 @@ These should be resolved before implementation:
 
 ## Next Step
 
-Define the tool contract, then implement the installer agent as a thin wrapper around pi’s built-in package commands.
+Define the tool contract, implement the documentation mode (LLM-driven), then implement the installer agent as a thin wrapper around pi’s built-in package commands.
