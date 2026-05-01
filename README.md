@@ -1,64 +1,153 @@
-# extension-creator
+# pi-extension-creator
 
-A small, repeatable way to create **pi.dev extensions** that are easy for LLMs to understand, generate, and maintain.
+A pi.dev extension that helps LLMs create, validate, and install pi extensions through guided workflows.
 
-## Objective
+## Overview
 
-This repository exists to provide a **concise, consistent extension-creation workflow** for pi.dev.
+This extension acts as a **guided extension builder** for pi coding agents. Instead of requiring manual scaffolding, it enables LLMs to:
 
-The goal is to make it easy to:
+- Classify extension types based on user intent
+- Bootstrap new extensions from natural language goals
+- Validate extension structure and cleanliness
+- Install extensions into pi from external workspaces
 
-- create new extensions quickly
-- keep extension structure predictable
-- reduce ambiguity for LLMs
-- reuse the same patterns across projects
+The primary interface is a **tool** that LLMs can call during normal agent work, minimizing the need for interactive slash commands.
 
-## Principles
+## Key Principles
 
-- **Repeatable**: every extension follows the same layout and conventions
-- **Concise**: minimal boilerplate, no unnecessary complexity
-- **Easy for LLMs**: clear instructions, simple structure, obvious naming
-- **Practical**: focused on generating usable extension templates
-- **Code-checked**: validation should be automated instead of relying on manual judgment
+- **Tool-first interface** - Extensions are created via tool calls, not commands
+- **External-first development** - Extensions are authored in normal project directories, outside pi's runtime folders
+- **Minimal command footprint** - Prefer a single umbrella command with arguments
+- **Clean architecture by default** - Generated extensions favor simplicity and reviewability
 
-## Expected outcome
+## Installation
 
-This project should provide a straightforward way to generate and validate extension scaffolds such as:
+This extension is designed to be installed as a pi extension:
 
-- metadata
-- prompts / templates
-- docs
-- configuration
-- example usage
-- validation output
+```bash
+# Build the extension
+npm install
+npm run build
 
-## Current implementation
+# Install into pi (from the extension-creator directory)
+pi extension install .
+```
 
-This repository now ships:
+Or add to your pi configuration:
 
-- a **pi extension** entrypoint at `src/extensions/extension-creator/index.ts`
-- reusable `/extension` and `/extension-full` prompt templates at `prompts/extension.md` and `prompts/extension-full.md`
-- a TypeScript-based validator CLI
-- built-in `install` / `update` / `remove` routing through pi’s package commands
+```json
+{
+  "pi": {
+    "extensions": ["./path/to/extension-creator/src/extensions/extension-creator"]
+  }
+}
+```
 
-Usage:
+## Usage
 
-- `npm run validate`
-- `node dist/cli.js validate <path> --json`
-- `/extension <goal>` for quick routing
-- `/extension-full <goal>` for stage-aware end-to-end workflow
+### As a Tool (Primary Interface)
 
-The validator checks:
+The LLM can call the extension creator tool with a user goal:
 
-- package naming
-- explicit entrypoint declaration
-- named extension directory for stable pi display names
-- short, named entrypoint filenames instead of `index.ts`
-- TypeScript config presence
-- compiler errors
-- undeclared runtime dependencies
-- build/runtime companion entrypoints
+```
+Create an extension that blocks dangerous file writes
+Make an extension that adds a custom tool
+Build an extension that injects system prompt guidance
+```
 
-## Next step
+The tool will:
+1. Classify the requested extension type
+2. Choose a clean structure
+3. Generate or outline the extension
+4. Review it for simplicity and correctness
+5. Coordinate installation into pi
 
-The next step is to keep the tool flow aligned with pi’s built-in package installer and package lifecycle commands.
+### As Commands (Secondary)
+
+- `/extension create <type>` - Create a new extension
+- `/extension install <path>` - Install an extension from a path
+- `/extension review <path>` - Review an existing extension
+
+## Development
+
+### Prerequisites
+
+- Node.js (with npm)
+- TypeScript 5.6+
+
+### Setup
+
+```bash
+npm install
+```
+
+### Build
+
+```bash
+npm run build
+```
+
+### Validate
+
+```bash
+# Validate the extension structure
+npm run validate
+
+# Type-check without emitting files
+npm run validate:src
+```
+
+### Clean
+
+```bash
+npm run clean
+```
+
+## Project Structure
+
+```
+extension-creator/
+├── src/
+│   ├── extensions/
+│   │   └── extension-creator/  # The extension implementation
+│   │       └── index.ts
+│   ├── cli.ts                   # CLI entry point
+│   ├── extension.ts             # Core extension logic
+│   ├── validator.ts             # Extension validation
+│   ├── types.ts                # Shared types
+│   └── shims.d.ts              # Type definitions
+├── prompts/                     # Prompt templates for LLM guidance
+│   ├── extension.md
+│   └── extension-full.md
+├── dist/                        # Build output (gitignored)
+├── ARCHITECTURE.md              # Detailed architecture spec
+├── package.json
+└── tsconfig.json
+```
+
+## Extension Types
+
+The creator supports various extension types:
+
+- **Tool extensions** - Add custom tools to pi
+- **Command extensions** - Add slash commands
+- **Prompt extensions** - Inject system prompt guidance
+- **Provider extensions** - Add custom AI providers
+
+## Contributing
+
+This project follows pi's extension guidelines:
+
+- Keep implementations small and focused
+- Favor one responsibility per extension
+- Use minimal event hooks
+- Ensure easy reviewability for LLMs
+
+## License
+
+See the LICENSE file (if applicable).
+
+## Related
+
+- [pi coding agent](https://github.com/mariozechner/pi-coding-agent)
+- [pi documentation](https://github.com/mariozechner/pi-coding-agent/blob/main/README.md)
