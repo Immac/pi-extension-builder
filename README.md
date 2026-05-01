@@ -1,39 +1,85 @@
-# pi-extension-creator
+# 🚀 pi-extension-creator
 
 A pi.dev extension that helps LLMs create, validate, and install pi extensions through guided workflows.
 
-## Overview
+![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-blue?style=flat-square&logo=typescript)
+![MIT License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+![Pi Extension](https://img.shields.io/badge/pi--extension-orange?style=flat-square)
 
-This extension acts as a **guided extension builder** for pi coding agents. Instead of requiring manual scaffolding, it enables LLMs to:
+> ⚠️ **Personal Project Disclaimer**: This is a personal project created for my own use. I cannot guarantee regular maintenance, timely updates, or support. Use at your own discretion.
 
-- Classify extension types based on user intent
-- Bootstrap new extensions from natural language goals
-- Validate extension structure and cleanliness
-- Install extensions into pi from external workspaces
+## ✨ What is this?
 
-The primary interface is a **tool** that LLMs can call during normal agent work, minimizing the need for interactive slash commands.
+Think of it as a **"factory for pi extensions"** — but smarter. Instead of manually scaffolding extensions, LLMs can use this tool to:
 
-## Key Principles
+<table>
+<tr>
+<td width="50%">
 
-- **Tool-first interface** - Extensions are created via tool calls, not commands
-- **External-first development** - Extensions are authored in normal project directories, outside pi's runtime folders
-- **Minimal command footprint** - Prefer a single umbrella command with arguments
-- **Clean architecture by default** - Generated extensions favor simplicity and reviewability
+### 🎯 **Smart Classification**
+Automatically identifies what type of extension you need based on natural language goals
 
-## Installation
+</td>
+<td width="50%">
 
-This extension is designed to be installed as a pi extension:
+### 🛠️ **Guided Creation**
+Step-by-step extension building with validation and best practices built-in
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### ✅ **Built-in Validation**
+Ensures extensions follow pi's architecture guidelines
+
+</td>
+<td width="50%">
+
+### 📦 **Easy Installation**
+Seamlessly install extensions from any workspace into pi
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🎨 Key Principles
+
+<div align="center">
+
+| Principle | Description |
+|-----------|-------------|
+| 🔧 **Tool-first** | Extensions created via tool calls, not commands |
+| 📁 **External-first** | Author in normal project directories |
+| 🎯 **Minimal footprint** | Single command with arguments, not many |
+| 🧹 **Clean by default** | Simplicity and reviewability always |
+
+</div>
+
+---
+
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
-# Build the extension
+# Clone the repository
+git clone git@github.com:Immac/pi-extension-builder.git
+cd pi-extension-builder
+
+# Install dependencies
 npm install
+
+# Build the extension
 npm run build
 
-# Install into pi (from the extension-creator directory)
+# Install into pi
 pi extension install .
 ```
 
-Or add to your pi configuration:
+### Or configure in your pi settings:
 
 ```json
 {
@@ -43,111 +89,148 @@ Or add to your pi configuration:
 }
 ```
 
-## Usage
+---
 
-### As a Tool (Primary Interface)
+## 💡 Usage
 
-The LLM can call the extension creator tool with a user goal:
+### 🤖 As a Tool (Primary)
+
+Just tell the LLM what you want:
+
+```yaml
+User: "Create an extension that blocks dangerous file writes"
+LLM: Calls extension-creator tool → validates → scaffolds → installs
+
+User: "Make an extension that adds a custom tool for git operations"
+LLM: Classifies as "tool extension" → generates code → reviews → done
+```
+
+### ⌨️ As Commands (Secondary)
+
+```bash
+/extension create <type>     # Create a new extension
+/extension install <path>    # Install from path
+/extension review <path>     # Review existing extension
+```
+
+---
+
+## 🏗️ Project Structure
 
 ```
-Create an extension that blocks dangerous file writes
-Make an extension that adds a custom tool
-Build an extension that injects system prompt guidance
+📦 pi-extension-creator/
+├── 🎯 src/
+│   ├── 📁 extensions/
+│   │   └── extension-creator/    # The extension implementation
+│   │       └── index.ts
+│   ├── cli.ts                     # CLI entry point
+│   ├── extension.ts               # Core logic
+│   ├── validator.ts               # Validation engine
+│   ├── types.ts                  # Shared types
+│   └── shims.d.ts                # Type definitions
+├── 📝 prompts/                     # LLM prompt templates
+│   ├── extension.md
+│   └── extension-full.md
+├── 📚 dist/                        # Build output (gitignored)
+├── 📖 ARCHITECTURE.md             # Detailed architecture spec
+├── 📦 package.json
+└── ⚙️ tsconfig.json
 ```
 
-The tool will:
-1. Classify the requested extension type
-2. Choose a clean structure
-3. Generate or outline the extension
-4. Review it for simplicity and correctness
-5. Coordinate installation into pi
+---
 
-### As Commands (Secondary)
-
-- `/extension create <type>` - Create a new extension
-- `/extension install <path>` - Install an extension from a path
-- `/extension review <path>` - Review an existing extension
-
-## Development
+## 🛠️ Development
 
 ### Prerequisites
 
-- Node.js (with npm)
-- TypeScript 5.6+
+- ![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js&style=flat) 
+- ![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-blue?logo=typescript&style=flat)
 
-### Setup
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm install` | 📦 Install dependencies |
+| `npm run build` | 🔨 Compile TypeScript |
+| `npm run validate` | ✅ Validate extension structure |
+| `npm run validate:src` | 🔍 Type-check without emitting |
+| `npm run clean` | 🧹 Remove build artifacts |
+
+### Development Workflow
 
 ```bash
+# Install dependencies
 npm install
-```
 
-### Build
+# Watch mode (if available)
+npm run build -- --watch
 
-```bash
-npm run build
-```
-
-### Validate
-
-```bash
-# Validate the extension structure
+# Validate as you work
 npm run validate
-
-# Type-check without emitting files
-npm run validate:src
 ```
 
-### Clean
+---
 
-```bash
-npm run clean
-```
+## 🎭 Extension Types Supported
 
-## Project Structure
+<div align="center">
 
-```
-extension-creator/
-├── src/
-│   ├── extensions/
-│   │   └── extension-creator/  # The extension implementation
-│   │       └── index.ts
-│   ├── cli.ts                   # CLI entry point
-│   ├── extension.ts             # Core extension logic
-│   ├── validator.ts             # Extension validation
-│   ├── types.ts                # Shared types
-│   └── shims.d.ts              # Type definitions
-├── prompts/                     # Prompt templates for LLM guidance
-│   ├── extension.md
-│   └── extension-full.md
-├── dist/                        # Build output (gitignored)
-├── ARCHITECTURE.md              # Detailed architecture spec
-├── package.json
-└── tsconfig.json
-```
+| Type | Icon | Description |
+|------|------|-------------|
+| **Tool** | 🔧 | Add custom tools to pi |
+| **Command** | ⌨️ | Add slash commands |
+| **Prompt** | 💬 | Inject system prompt guidance |
+| **Provider** | 🤖 | Add custom AI providers |
 
-## Extension Types
+</div>
 
-The creator supports various extension types:
+---
 
-- **Tool extensions** - Add custom tools to pi
-- **Command extensions** - Add slash commands
-- **Prompt extensions** - Inject system prompt guidance
-- **Provider extensions** - Add custom AI providers
+## 🤝 Contributing
 
-## Contributing
+We follow pi's extension guidelines:
 
-This project follows pi's extension guidelines:
+- ✅ Keep it small and focused
+- ✅ One responsibility per extension
+- ✅ Minimal event hooks
+- ✅ Easy reviewability for LLMs
+- ✅ Clean, obvious file layout
 
-- Keep implementations small and focused
-- Favor one responsibility per extension
-- Use minimal event hooks
-- Ensure easy reviewability for LLMs
+### How to Contribute
 
-## License
+1. 🍴 Fork the repository
+2. 🌿 Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. 💾 Commit your changes (`git commit -m 'Add amazing feature'`)
+4. 🚀 Push to the branch (`git push origin feature/amazing-feature`)
+5. 🎉 Open a Pull Request
 
-See the LICENSE file (if applicable).
+---
 
-## Related
+## 📚 Resources
 
-- [pi coding agent](https://github.com/mariozechner/pi-coding-agent)
-- [pi documentation](https://github.com/mariozechner/pi-coding-agent/blob/main/README.md)
+<div align="center">
+
+[![pi coding agent](https://img.shields.io/badge/pi-coding--agent-documentation-orange?style=for-the-badge)](https://github.com/mariozechner/pi-coding-agent)
+[![Architecture](https://img.shields.io/badge/Architecture-Spec-blue?style=for-the-badge)](./ARCHITECTURE.md)
+
+</div>
+
+- 📖 [pi Coding Agent Documentation](https://github.com/mariozechner/pi-coding-agent)
+- 🏗️ [Architecture Specification](./ARCHITECTURE.md)
+- 💬 [pi Community & Support](https://github.com/mariozechner/pi-coding-agent/discussions)
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+### 🌟 Like this project?
+
+Give it a ⭐ on [GitHub](https://github.com/Immac/pi-extension-builder)!
+
+</div>
