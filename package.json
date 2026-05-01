@@ -10,7 +10,8 @@
   },
   "pi": {
     "extensions": ["./src/extensions/extension-creator"],
-    "prompts": ["./prompts"]
+    "prompts": ["./prompts"],
+    "skills": ["./skills"]
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
