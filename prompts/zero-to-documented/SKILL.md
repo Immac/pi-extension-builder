@@ -1,3 +1,8 @@
+---
+name: zero-to-documented
+description: Build a complete, documented pi extension from scratch (zero → plan → scaffold → implement → document → validate → install)
+---
+
 # Zero to Documented Extension
 
 You are tasked with building a complete, documented pi extension from scratch based on a user's goal. Follow this complete workflow:
@@ -138,6 +143,66 @@ At each phase, report:
 **Next Step:** <what happens next>
 ```
 
+## Pi Extension Examples
+
+Study these real extension patterns from `pi-coding-agent/examples`:
+
+### Simple Tool Extension (with-deps)
+- **Pattern**: Register a single tool using `pi.registerTool()`
+- **Structure**: Simple, single file, minimal
+```typescript
+export default function (pi: ExtensionAPI) {
+  pi.registerTool({
+    name: "tool_name",
+    label: "Tool Label",
+    description: "What it does",
+    parameters: Type.Object({ /* ... */ }),
+    execute: async (_id, params) => { /* ... */ }
+  });
+}
+```
+
+### Complex Extension with Multiple Files (sandbox)
+- **Pattern**: Replace built-in tool with enhanced version
+- **Features**: Config loading, OS-level sandboxing, event handlers
+- **Key patterns**:
+  - `pi.registerTool()` with `...localTool` spread
+  - `pi.on("session_start", async (event, ctx) => { ... })`
+  - `pi.registerFlag()` for extension options
+  - `pi.registerCommand()` for slash commands
+  - Load config from `~/.pi/agent/extensions/` and `<cwd>/.pi/`
+
+### Skill Extension (dynamic-resources)
+- **Pattern**: Markdown-based skill with frontmatter
+```markdown
+---
+name: dynamic-resources
+description: Example skill...
+---
+```
+
+### Extension Entrypoint Pattern
+```typescript
+export default function (pi: ExtensionAPI) {
+  // Register tools, commands, flags, event handlers
+  pi.registerTool({ /* ... */ });
+  pi.registerCommand("cmd", { /* ... */ });
+  pi.on("session_start", async (event, ctx) => { /* ... */ });
+}
+```
+
+### Package Structure
+```
+my-extension/
+├── package.json       # name: "my-extension", main: "./dist/index.js"
+├── tsconfig.json
+├── src/
+│   └── index.ts    # Entrypoint (named, not just "index" for identity)
+├── prompts/           # Optional: prompt templates
+│   └── extension.md
+└── dist/              # Build output (gitignored)
+```
+
 ## Important Notes
 
 1. **This is LLM-driven**: Use your understanding to write code and documentation, don't just fill templates
@@ -166,98 +231,3 @@ Phase 7: Install → pi install ./workspace/web-search
 - `prompts/documentation.md` - Detailed documentation generation guide
 - `ARCHITECTURE.md` - This project's architecture spec
 - https://github.com/Immac/pi-extension-builder - Example of documented extension
-
-## Pi Extension Examples (from pi-coding-agent/examples)
-
-Study these real extension patterns:
-
-### Simple Tool Extension (with-deps)
-- **File**: `examples/extensions/with-deps/index.ts`
-- **Pattern**: Register a single tool using `pi.registerTool()`
-- **Dependencies**: Uses external npm package (`ms`)
-- **Structure**: Simple, single file, minimal
-
-```typescript
-export default function (pi: ExtensionAPI) {
-  pi.registerTool({
-    name: "parse_duration",
-    label: "Parse Duration",
-    description: "Parse a human-readable duration string",
-    parameters: Type.Object({ duration: Type.String() }),
-    execute: async (_id, params) => { /* ... */ }
-  });
-}
-```
-
-### Complex Extension with Multiple Files (sandbox)
-- **Files**: `examples/extensions/sandbox/index.ts`
-- **Pattern**: Replace built-in tool (`bash`) with sandboxed version
-- **Features**: Config loading, OS-level sandboxing, event handlers (`on`, `on`), flag registration
-- **Structure**: Multiple helper functions, config merging, error handling
-
-Key patterns from sandbox:
-- `pi.registerTool()` with `...localBash` spread
-- `pi.on("session_start", async (event, ctx) => { ... })`
-- `pi.registerFlag()` for extension options
-- `pi.registerCommand()` for slash commands
-- Load config from `~/.pi/agent/extensions/` and `<cwd>/.pi/`
-
-### Skill Extension (dynamic-resources)
-- **File**: `examples/extensions/dynamic-resources/SKILL.md`
-- **Pattern**: Markdown-based skill with frontmatter
-- **Structure**: Skill loaded via `resources_discovered` event
-
-```markdown
----
-name: dynamic-resources
-description: Example skill...
----
-
-# Dynamic Resources Skill
-...
-```
-
-### Subagent Extension (subagent)
-- **Pattern**: Multiple agents with specialized prompts
-- **Files**: `agents/planner.md`, `agents/reviewer.md`, `agents/scout.md`
-- **Prompts**: `prompts/implement.md`, `prompts/review.md`, `prompts/scout-and-plan.md`
-
-## Key Patterns to Follow
-
-### Extension Entrypoint
-```typescript
-export default function (pi: ExtensionAPI) {
-  // Register tools, commands, flags, event handlers
-  pi.registerTool({ /* ... */ });
-  pi.registerCommand("cmd", { /* ... */ });
-  pi.on("session_start", async (event, ctx) => { /* ... */ });
-}
-```
-
-### Package Structure (from examples)
-```
-my-extension/
-├── package.json       # name: "my-extension", main: "./dist/index.js"
-├── tsconfig.json
-├── src/
-│   └── index.ts    # Entrypoint (named, not just "index" for identity)
-├── prompts/           # Optional: prompt templates
-│   └── extension.md
-└── dist/              # Build output (gitignored)
-```
-
-### Tool Registration
-```typescript
-pi.registerTool({
-  name: "tool_name",
-  label: "Tool Label",
-  description: "What it does",
-  parameters: Type.Object({ /* ... */ }),
-  execute: async (id, params, signal, onUpdate, ctx) => {
-    return {
-      content: [{ type: "text", text: "result" }],
-      details: { /* ... */ },
-    };
-  },
-});
-```
