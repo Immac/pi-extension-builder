@@ -10,7 +10,7 @@ A pi.dev extension that helps LLMs create, validate, and install pi extensions t
 
 ## ✨ What is this?
 
-Think of it as a **"factory for pi extensions"** — but smarter. This extension itself is built for managing the extension lifecycle: planning, scaffolding, validating, and installing other pi extensions.
+Think of it as a **"factory for pi extensions"** — but smarter. This extension itself is built for managing the extension lifecycle: planning, scaffolding, validating, and **deterministically installing** other pi extensions.
 
 Instead of manually managing extension files and running shell commands, LLMs use the `extension_creator` **tool** to:
 
@@ -38,8 +38,8 @@ Ensures extensions follow pi's architecture guidelines before installation
 </td>
 <td width="50%">
 
-### 📦 **Unified Lifecycle**
-Single tool manages planning → scaffolding → review → validation → install/update/remove
+### 📦 **Deterministic Install**
+Copies extensions to **~/.pi-extensions/<name>**, not a suggestion
 
 </td>
 </tr>
@@ -57,7 +57,7 @@ Single tool manages planning → scaffolding → review → validation → insta
 | 📁 **External-first** | Author extensions in normal project directories, not inside pi |
 | 🧭 **Guided Routes** | Tool infers the right workflow stage and starting mode from requests |
 | ✅ **Validate Always** | Validation is mandatory before any lifecycle action |
-| 🎯 **Minimal** | One clear responsibility per extension, clean architecture |
+| 🎯 **Deterministic Install** | Programmatic file copy to **~/.pi-extensions/<name>**, not shell commands |
 
 </div>
 
@@ -69,7 +69,7 @@ Single tool manages planning → scaffolding → review → validation → insta
 
 ```bash
 # From this directory, use the extension_creator tool
-extension_creator(goal="Install the pi-extension-creator", mode="install", path="/path/to/this/repo")
+extension_creator(goal="Install the pi-extension-creator", mode="install", path="./extension-creator")
 ```
 
 Or from the command line:
@@ -78,8 +78,8 @@ Or from the command line:
 # Build the extension first
 npm install && npm run build
 
-# Then use pi to install from this local directory
-# (This will invoke the extension_creator tool to manage installation)
+# Then use the extension_creator tool to install
+# This deterministically copies to ~/.pi-extensions/<extension-name>
 ```
 
 ---
@@ -105,7 +105,7 @@ User: "Validate and install it"
 ↓
 LLM: Calls extension_creator with mode="validate", then mode="install"
 ↓
-Tool: Validates the package, runs installation, reports success
+Tool: Validates the package, copies to ~/.pi-extensions/<name>, reports success
 ```
 
 #### Example 2: Review and update an existing extension
@@ -138,6 +138,29 @@ Tool: Re-validates and updates the installation
 | `strict` | Enforce stricter validation and cleanup rules |
 | `note` | Additional context or special instructions |
 
+### 🎯 Deterministic Installation
+
+This is **NOT** a suggestion — the installer actually copies files to:
+
+```
+~/.pi-extensions/<extension-name>
+```
+
+1. Validates the extension first
+2. Creates `~/.pi-extensions/` if needed
+3. **Removes existing installation** if present (replaces with new version)
+4. **Deterministically copies** source files to the install path
+5. Reports success/failure
+
+### 🗑️ Remove Existing Installation
+
+When installing an extension with the same name:
+- Existing extension is automatically removed
+- New version is installed in its place
+- Message includes "(replaced existing)" to confirm
+
+This replaces the old `pi install .` workflow with deterministic programmatic install.
+
 ### Prompts for LLMs
 
 Three built-in prompts guide LLM behavior:
@@ -155,21 +178,20 @@ Three built-in prompts guide LLM behavior:
 ```
 📦 pi-extension-creator/
 ├── 🎯 src/
-│   ├── 📁 extensions/
-│   │   └── extension-creator/    # The extension tool
-│   │       └── index.ts
-│   ├── extension.ts              # Tool implementation & workflow logic
-│   ├── validator.ts              # Extension package validator
-│   ├── types.ts                  # Shared types
-│   └── cli.ts                    # CLI entry point
-├── 📝 prompts/                   # LLM prompt templates
-│   ├── init-extension.md         # Quick start for extension creation
-│   ├── create-extension.md       # Full end-to-end workflow
-│   └── documentation.md          # Documentation generation
-├── 📚 skills/                    # Specialized workflows
-│   └── zero-to-documented/       # Skill: Full extension creation workflow
-├── 📖 dist/                      # Build output
-├── 📄 ARCHITECTURE.md            # Detailed design specification
+│   ├── extension.ts         # Main tool implementation
+│   ├── installer.ts        # **Deterministic install to ~/.pi-extensions/<name>**
+│   ├── validator.ts        # Extension package validator
+│   ├── types.ts           # Shared types
+│   └── cli.ts             # CLI entry point
+├── 📝 prompts/            # LLM prompt templates
+│   ├── init-extension.md
+│   ├── create-extension.md
+│   └── documentation.md
+├── 📚 skills/             # Specialized workflows
+│   ├── zero-to-documented/
+│   └── use-extension-creator-install/
+├── 📖 dist/               # Build output
+├── 📄 ARCHITECTURE.md     # Detailed design specification
 ├── 📦 package.json
 └── ⚙️ tsconfig.json
 ```
@@ -207,7 +229,7 @@ npm run validate
 
 # To test locally:
 # Use the extension_creator tool to install from your working directory
-extension_creator(goal="Install extension-creator for testing", mode="install", path="/path/to/this/repo")
+extension_creator(goal="Install extension-creator for testing", mode="install", path="./extension-creator")
 ```
 
 ---
@@ -229,7 +251,7 @@ The tool can help create these extension types:
 
 ---
 
-## 🏛️ Workflow Stages
+## 🏛�� Workflow Stages
 
 The tool understands the extension lifecycle:
 
@@ -250,11 +272,11 @@ Before installation, the validator checks:
 
 - ✅ Valid `package.json` with clear name and pi config
 - ✅ TypeScript source files (prefer named entrypoint over `index.ts`)
-- ✅ Explicit extension path in `src/extensions/<name>/<name>.ts`
+- ✅ Explicit extension path in `src/extensions/extension-creator/index.ts`
 - ✅ Valid `tsconfig.json`
 - ✅ No conflicts with installed extensions
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed validation rules.
+The installer then **deterministically copies** to `~/.pi-extensions/<name>`.
 
 ---
 
@@ -268,6 +290,7 @@ We follow pi's extension guidelines:
 - ✅ Easy reviewability for LLMs
 - ✅ Clean, obvious file layout
 - ✅ Always validate before installing
+- ✅ Use deterministic install to `~/.pi-extensions/<name>`
 
 ### How to Contribute
 

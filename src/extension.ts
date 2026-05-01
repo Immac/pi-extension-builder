@@ -1,6 +1,7 @@
 import { Type } from '@mariozechner/pi-ai';
 import { defineTool, type ExtensionAPI } from '@mariozechner/pi-coding-agent';
 import { validateExtensionProject } from './validator';
+import { runDeterministicInstall, type InstallResult } from './installer';
 import type { ValidationResult } from './types';
 
 type Mode = 'plan' | 'scaffold' | 'review' | 'document' | 'validate' | 'install' | 'update' | 'remove';
@@ -12,6 +13,7 @@ interface ToolParams {
   goal?: string;
   extensionKind?: string;
   path?: string;
+  sourcePath?: string;
   installTarget?: string;
   strict?: boolean;
   note?: string;
@@ -23,12 +25,12 @@ interface ToolPayload {
   startMode: Mode;
   goal?: string;
   extensionKind: string;
-  path?: string;
+  sourcePath?: string;
   installTarget?: string;
   strict: boolean;
   note?: string;
   validation?: ValidationResult;
-  commandResult?: CommandRunResult;
+  installResult?: InstallResult;
   plan?: {
     title: string;
     summary: string;
@@ -45,16 +47,6 @@ interface ToolPayload {
   };
   nextAction: string;
 }
-
-interface CommandRunResult {
-  command: string;
-  args: string[];
-  code: number | null;
-  stdout: string;
-  stderr: string;
-}
-
-let runtimePi: ExtensionAPI | undefined;
 
 const extensionCreatorTool = defineTool({
   name: 'extension_creator',
@@ -74,6 +66,7 @@ const extensionCreatorTool = defineTool({
     goal: Type.Optional(Type.String({ description: 'What the user wants the extension to do.' })),
     extensionKind: Type.Optional(Type.String({ description: 'The extension style, such as tool, command, prompt, or provider.' })),
     path: Type.Optional(Type.String({ description: 'Path to an external workspace or extension package.' })),
+    sourcePath: Type.Optional(Type.String({ description: 'Source path (alias for path).' })),
     installTarget: Type.Optional(Type.String({ description: 'Optional install target or discovery preference.' })),
     strict: Type.Optional(Type.Boolean({ description: 'Prefer stricter cleanup and validation guidance.' })),
     note: Type.Optional(Type.String({ description: 'Additional instruction or context.' })),
@@ -84,26 +77,30 @@ const extensionCreatorTool = defineTool({
     const mode = normalizeMode(params.mode, stage, goal, params.path);
     const strict = Boolean(params.strict);
     const extensionKind = params.extensionKind?.trim() || inferKindFromGoal(goal) || 'tool extension';
-    const path = params.path?.trim();
+    const sourcePath = params.sourcePath?.trim() || params.path?.trim();
     const installTarget = params.installTarget?.trim();
     const note = params.note?.trim();
 
     let validation: ValidationResult | undefined;
-    if ((mode === 'validate' || mode === 'review' || mode === 'install' || mode === 'update') && path) {
-      validation = await validateExtensionProject(path);
+    if ((mode === 'validate' || mode === 'review' || mode === 'install' || mode === 'update') && sourcePath) {
+      validation = await validateExtensionProject(sourcePath);
     }
 
     const plan = mode === 'plan' || mode === 'scaffold'
       ? buildPlan({ goal, extensionKind, strict, note })
       : undefined;
 
-    const commandResult = shouldRunPiCommand(mode)
-      ? await runPiLifecycleCommand({ mode, path, installTarget, signal, validation })
+    const installResult = mode === 'install' && sourcePath
+      ? runDeterministicInstall({ sourcePath, validation })
       : undefined;
 
-    // Document mode: LLM-driven documentation generation
-    const documentation = mode === 'document' && path
-      ? buildDocumentationGuidance({ path, extensionKind })
+    // Notify user to reload pi after successful install
+    if (installResult?.success) {
+      ctx.ui?.notify?.('Extension installed. Restart pi to reload the new code!', 'info');
+    }
+
+    const documentation = mode === 'document' && sourcePath
+      ? buildDocumentationGuidance({ sourcePath, extensionKind })
       : undefined;
 
     const payload: ToolPayload = {
@@ -112,18 +109,18 @@ const extensionCreatorTool = defineTool({
       startMode: mode,
       goal,
       extensionKind,
-      path,
+      sourcePath,
       installTarget,
       strict,
       note,
       validation,
-      commandResult,
+      installResult,
       plan,
       documentation,
-      nextAction: chooseNextAction({ mode, stage, path, validation, commandResult, startMode: mode }),
+      nextAction: chooseNextAction({ mode, stage, sourcePath, validation, installResult, startMode: mode }),
     };
 
-    if (!path && ['validate', 'review', 'install', 'update', 'remove'].includes(mode)) {
+    if (!sourcePath && ['validate', 'review', 'install', 'update', 'remove'].includes(mode)) {
       payload.nextAction = 'Provide a source workspace path so pi can target the package source.';
     }
 
@@ -137,7 +134,6 @@ const extensionCreatorTool = defineTool({
 });
 
 export default function extensionCreator(pi: ExtensionAPI) {
-  runtimePi = pi;
   pi.registerTool(extensionCreatorTool);
 }
 
@@ -260,125 +256,70 @@ function buildPlan(params: { goal?: string; extensionKind: string; strict: boole
   return { title, summary, files, steps, cautions };
 }
 
-function buildDocumentationGuidance(params: { path: string; extensionKind: string }): ToolPayload['documentation'] {
+function buildDocumentationGuidance(params: { sourcePath: string; extensionKind: string }): ToolPayload['documentation'] {
+  const { sourcePath } = params;
   const title = `Documentation for ${params.extensionKind}`;
-  const instruction = `Generate README.md and optionally ARCHITECTURE.md for the extension at ${params.path}. This is LLM-driven - analyze the source code and use the prompts/documentation.md template.`;
+  const instruction = `Generate README.md and optionally ARCHITECTURE.md for the extension at ${sourcePath}. Analyze the source code structure, dependencies, and purpose.`;
   
   const promptTemplate = 'prompts/documentation.md';
   
   const outputFiles = ['README.md', 'ARCHITECTURE.md (optional, for complex extensions)'];
   
   const steps = [
-    `Read the extension source files at ${params.path}`,
+    `Read the extension source files at ${sourcePath}`,
     'Analyze the code structure, dependencies, and purpose',
     'Identify the extension type (tool, command, prompt, provider)',
     `Use the ${promptTemplate} template as guidance`,
     'Generate README.md with appropriate badges, sections, and examples',
     'Generate ARCHITECTURE.md only if the extension has complex architecture',
-    `Write the files to ${params.path}`,
+    `Write the files to ${sourcePath}`,
   ];
 
   return { title, instruction, promptTemplate, outputFiles, steps };
 }
 
-function chooseNextAction(params: { mode: Mode; stage: Stage; path?: string; validation?: ValidationResult; commandResult?: CommandRunResult; startMode: Mode }): string {
+function chooseNextAction(params: { mode: Mode; stage: Stage; sourcePath?: string; validation?: ValidationResult; installResult?: InstallResult; startMode: Mode }): string {
   const stageLabel = params.stage === 'unknown' ? 'unknown' : params.stage;
 
-  if (params.commandResult) {
-    return params.commandResult.code === 0
-      ? `pi ${params.mode} completed successfully. Review the output and reload if needed.`
-      : `pi ${params.mode} failed with exit code ${params.commandResult.code ?? 'unknown'}; fix the reported issue and retry.`;
+  if (params.installResult) {
+    return params.installResult.success
+      ? `Installed ${params.installResult.extensionName} to ${params.installResult.installPath}`
+      : `Installation failed: ${params.installResult.message}`;
   }
 
   switch (params.mode) {
     case 'plan':
     case 'scaffold':
-      return `Start at ${params.startMode} for stage ${stageLabel}, then create the external workspace and validate it before installing into pi.`;
+      return `Start at ${params.startMode} for stage ${stageLabel}, then create the external workspace and validate it before installing.`;
     case 'review':
-      if (!params.path) return 'Provide a path to review an existing extension package.';
+      if (!params.sourcePath) return 'Provide a path to review an existing extension package.';
       return params.validation
         ? params.validation.status === 'fail'
           ? 'Fix the reported validation errors before installation.'
-          : 'Address any warnings, then install or update when ready.'
+          : 'Address any warnings, then install when ready.'
         : 'Review the returned diagnostics and refine the package structure.';
     case 'document':
-      if (!params.path) return 'Provide a path to generate documentation for an extension.';
-      return 'Use the LLM to analyze the extension at the path and generate README.md and optionally ARCHITECTURE.md using the documentation prompt template.';
+      if (!params.sourcePath) return 'Provide a path to generate documentation for an extension.';
+      return 'Use the LLM to analyze the extension at the path and generate README.md and optionally ARCHITECTURE.md.';
     case 'validate':
-      if (!params.path) return 'Provide a path to validate an extension package.';
+      if (!params.sourcePath) return 'Provide a path to validate an extension package.';
       return params.validation
         ? params.validation.status === 'pass'
-          ? 'The package is ready for the next lifecycle step.'
-          : 'Fix errors before installing; warnings are optional cleanup items.'
+          ? 'The package is ready for installation.'
+          : 'Fix errors before installing; warnings are optional.'
         : 'Run validation and inspect the results.';
     case 'install':
-      if (!params.path) return 'Provide a path to the source package, then validate and install it with the tool workflow.';
+      if (!params.sourcePath) return 'Provide a path to the source package.';
       return params.validation
         ? params.validation.status === 'pass'
-          ? 'Proceed with the install workflow only after the package is validated.'
-          : 'Do not install until the validation errors are fixed.'
-        : 'Validate the package first, then install it.';
+          ? 'Proceed with installation, then restart pi to reload.'
+          : 'Do not install until validation errors are fixed.'
+        : 'Validate the package first, then restart pi to reload after install.';
     case 'update':
-      return 'Re-run validation on the external workspace, then refresh the installed package only if validation passes.';
+      return 'Re-validate the external workspace, then refresh the installed package only if validation passes.';
     case 'remove':
-      return 'Remove the installed package through the tool workflow, then keep the source workspace untouched.';
+      return 'Remove the installed package, then keep the source workspace untouched.';
   }
-}
-
-function shouldRunPiCommand(mode: Mode): boolean {
-  return mode === 'install' || mode === 'update' || mode === 'remove';
-}
-
-function buildPiCommand(params: { mode: Mode; path?: string; installTarget?: string }): { command: string; args: string[] } {
-  const args: string[] = [params.mode];
-
-  if (!params.path && params.mode !== 'remove') {
-    return { command: 'pi', args };
-  }
-
-  if (params.path) {
-    args.push(params.path);
-  }
-
-  if ((params.mode === 'install' || params.mode === 'remove') && isProjectLocalInstall(params.installTarget)) {
-    args.push('-l');
-  }
-
-  return { command: 'pi', args };
-}
-
-async function runPiLifecycleCommand(params: { mode: Mode; path?: string; installTarget?: string; signal: any; validation?: ValidationResult }): Promise<CommandRunResult | undefined> {
-  if (!runtimePi) {
-    throw new Error('extension runtime is not initialized');
-  }
-
-  if ((params.mode === 'install' || params.mode === 'update') && params.path && params.validation?.status === 'fail') {
-    return undefined;
-  }
-
-  if ((params.mode === 'install' || params.mode === 'update' || params.mode === 'remove') && !params.path) {
-    return undefined;
-  }
-
-  if (typeof runtimePi.exec !== 'function') {
-    throw new Error('pi runtime does not expose exec()');
-  }
-
-  const { command, args } = buildPiCommand(params);
-  const result = await runtimePi.exec(command, args, { signal: params.signal });
-
-  return {
-    command,
-    args,
-    code: typeof result?.code === 'number' ? result.code : null,
-    stdout: result?.stdout ?? '',
-    stderr: result?.stderr ?? '',
-  };
-}
-
-function isProjectLocalInstall(installTarget?: string): boolean {
-  const value = installTarget?.trim().toLowerCase();
-  return value === 'local' || value === 'project' || value === 'project-local' || value === '-l';
 }
 
 function renderPayload(payload: ToolPayload): string {
@@ -390,7 +331,7 @@ function renderPayload(payload: ToolPayload): string {
   lines.push(`Start mode: ${payload.startMode}`);
   lines.push(`Extension kind: ${payload.extensionKind}`);
   if (payload.goal) lines.push(`Goal: ${payload.goal}`);
-  if (payload.path) lines.push(`Path: ${payload.path}`);
+  if (payload.sourcePath) lines.push(`Source path: ${payload.sourcePath}`);
   if (payload.installTarget) lines.push(`Install target preference: ${payload.installTarget}`);
   lines.push(`Strict: ${payload.strict ? 'yes' : 'no'}`);
   if (payload.note) lines.push(`Note: ${payload.note}`);
@@ -416,17 +357,11 @@ function renderPayload(payload: ToolPayload): string {
     lines.push('');
   }
 
-  if (payload.commandResult) {
-    lines.push(`Command: ${payload.commandResult.command} ${payload.commandResult.args.join(' ')}`.trim());
-    lines.push(`Exit code: ${payload.commandResult.code ?? 'unknown'}`);
-    if (payload.commandResult.stdout) {
-      lines.push('stdout:');
-      lines.push(payload.commandResult.stdout.trimEnd());
-    }
-    if (payload.commandResult.stderr) {
-      lines.push('stderr:');
-      lines.push(payload.commandResult.stderr.trimEnd());
-    }
+  if (payload.installResult) {
+    lines.push(`Installation: ${payload.installResult.success ? 'SUCCESS' : 'FAILED'}`);
+    lines.push(`Extension: ${payload.installResult.extensionName}`);
+    lines.push(`Installed to: ${payload.installResult.installPath}`);
+    lines.push(`Message: ${payload.installResult.message}`);
     lines.push('');
   }
 

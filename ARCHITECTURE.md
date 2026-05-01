@@ -12,7 +12,7 @@ The extension is intended to be called primarily as a **tool** by the LLM, not a
 - Bootstrap a new extension from user intent
 - **Generate documentation (README, ARCHITECTURE) for extensions**
 - Keep generated extensions clean and minimal
-- Support development outside pi’s runtime folders
+- Support development outside pi's runtime folders
 - Provide a controlled install path into pi
 - Avoid polluting interactive sessions with many `/commands`
 - Optionally delegate work to specialized agents
@@ -51,7 +51,7 @@ The primary interface should be a **tool** that the LLM can call during normal a
 
 ### 2. External-first development
 
-Extensions should be authored in a normal project directory, outside of pi’s global or project-local extension folders.
+Extensions should be authored in a normal project directory, outside of pi's global or project-local extension folders.
 
 ### 3. Minimal command footprint
 
@@ -89,7 +89,7 @@ The main tool is the user-facing entry point for the LLM.
 
 Responsibilities:
 
-- accept the user’s extension request
+- accept the user's extension request
 - identify the extension type
 - route the request to the appropriate internal agent
 - return a clean plan or scaffold guidance
@@ -103,7 +103,7 @@ The tool may delegate to one or more specialized agents.
 
 Responsibilities:
 
-- interpret the user’s intent
+- interpret the user's intent
 - decide which pi extension pattern fits best
 - define the minimum required files
 - identify dependencies and clean boundaries
@@ -163,16 +163,16 @@ The system should be able to reason about common pi extension styles, including:
 
 ## External Workspace Model
 
-The source extension should live outside pi’s folders, for example in a normal project repository.
+The source extension should live outside pi's folders, for example in a normal project repository.
 
 Conceptually:
 
 - **source workspace**: where the extension is authored and reviewed
 - **install target**: where pi loads the extension from
 
-The architecture should support a clean transition from source workspace to install target without mixing authoring files into pi’s runtime directories.
+The architecture should support a clean transition from source workspace to install target without mixing authoring files into pi's runtime directories.
 
-For installation, the tool should use pi’s built-in package workflow (`pi install`, `pi remove`, `pi update`) instead of inventing a separate copier or linker.
+The installer uses **deterministic file copy** to `~/.pi-extensions/<name>`, replacing existing extensions automatically.
 
 ## Package and Source Conventions
 
@@ -291,16 +291,15 @@ It should prefer a short, named TypeScript file that matches the extension name 
 
 The install target should be predictable, isolated, and easy for pi to discover.
 
-For this project, the install target is the pi package/discovery state managed by the built-in installer, not a custom filesystem destination chosen by the extension.
+For this project, the install target is **~/.pi-extensions/<extension-name>**, not pi's built-in discovery folders.
 
 ### Target rules
 
-- the install target must be explicitly defined
+- the install target must be explicitly defined as `~/.pi-extensions/<name>`
 - the source workspace and install target must remain separate
-- the install target should be structured for discovery by pi without extra ambiguity
-- the installer should not scatter files across multiple unrelated paths unless required by pi’s package model
+- the installer must use deterministic file copy, not symbolic links
 - the install target should preserve the package name as the installed identity
-- the install target should support clean updates and removals
+- the installer should support clean updates and removals
 
 ## Install Concept
 
@@ -310,12 +309,12 @@ Desired behavior:
 
 1. validate the extension source
 2. confirm the extension type, package name, and explicit entrypoint
-3. determine whether installation should be global or project-local
+3. **determine install path as ~/.pi-extensions/<name>**
 4. run the code-based TypeScript/package validator before installation
-5. invoke pi’s built-in install/update/remove command for the selected source
-6. keep the installed package identity stable and the source workspace untouched
+5. **deterministically copy source files to ~/.pi-extensions/<name>**
+6. keep the source workspace untouched
 
-The mechanism should be based on pi’s own package manager behavior, not a separate custom installer.
+The mechanism is a **deterministic file copy** implemented in `installer.ts`, not pi's built-in package manager.
 
 ## Cleanliness Rules
 
@@ -393,7 +392,7 @@ The tool should support a few clear modes so the LLM can use the same interface 
 - **review**: inspect an existing external extension for cleanliness and correctness
 - **document**: generate README.md and ARCHITECTURE.md using LLM analysis
 - **validate**: run code-based checks without installing
-- **install**: validate and hand off to pi’s built-in install flow
+- **install**: validate and hand off to pi's built-in install flow
 
 ### Validation-only mode
 
@@ -409,10 +408,9 @@ The `validate` mode should be a first-class path for checking an external extens
 
 ### Install/update/remove behavior
 
-- `install`: validate first, then call `pi install <source>` or `pi install <source> -l` as appropriate
-- `update`: refresh installed packages with `pi update` or `pi update <source>` after validation
-- `remove`: detach the package with `pi remove <source>` or `pi uninstall <source>`
-- keep the source workspace untouched when operating on an installed package
+- `install`: validate first, remove existing if present, then **deterministically copy to ~/.pi-extensions/<name>**
+- `update`: refresh installed package by re-copying from validated source (replaces existing)
+- `remove`: delete from ~/.pi-extensions/<name> while keeping source workspace untouched
 
 ## Agent Responsibilities
 
@@ -444,8 +442,7 @@ The main tool may delegate to a small set of focused agents.
 
 - prepare the validated package for install
 - resolve the declared entrypoint
-- decide whether the source should be installed globally or project-locally
-- invoke pi’s built-in package manager command
+- **deterministically copy source to ~/.pi-extensions/<name>**
 - confirm the installed identity remains stable
 
 ### Validation Agent
@@ -472,22 +469,23 @@ The extension should support a clean lifecycle for external development and inst
 
 - validate the source package
 - resolve the package name and entrypoint
-- invoke `pi install` against the source package or local path
+- remove existing installation if present
+- deterministically copy to ~/.pi-extensions/<name>
 - preserve the installed identity and metadata
 - fail safely if validation does not pass
 
 ### Update
 
 - re-run validation on the external source
-- use `pi update` or `pi update <source>` to refresh the installed package
+- deterministically copy to replace the existing installation
 - keep the installed identity stable
 - avoid leaving stale artifacts behind
 - preserve a previous working installation if the new update fails
 
 ### Remove
 
-- detach the installed package from pi with `pi remove` or `pi uninstall`
-- remove or deactivate the discovery record
+- delete the installed extension from ~/.pi-extensions/<name>
+- remove the discovery record
 - avoid affecting the source workspace
 - clean up only the installed artifacts
 - remain safe if the package is already missing or partially removed
@@ -501,7 +499,7 @@ The extension should support a clean lifecycle for external development and inst
 5. Tool returns a clean extension plan or scaffold guidance
 6. The extension is developed in an external workspace
 7. **Documentation is generated using LLM analysis of the codebase**
-8. The install step places it into pi’s discovery path
+8. The install step places it into pi's discovery path
 
 ## Open Questions
 
@@ -516,4 +514,4 @@ These should be resolved before implementation:
 
 ## Next Step
 
-Define the tool contract, implement the documentation mode (LLM-driven), then implement the installer agent as a thin wrapper around pi’s built-in package commands.
+Define the tool contract, implement the documentation mode (LLM-driven), then implement the **deterministic installer** in `installer.ts` that copies to `~/.pi-extensions/<name>`.
