@@ -172,7 +172,7 @@ Conceptually:
 
 The architecture should support a clean transition from source workspace to install target without mixing authoring files into pi's runtime directories.
 
-The installer uses **deterministic file copy** to `~/.pi-extensions/<name>`, replacing existing extensions automatically.
+The installer uses **deterministic file copy** to `~/.pi-extensions/<name>`, replacing existing extensions automatically. Bootstrap also creates or updates `~/.pi/agent/settings.json` so the installed extension is discoverable.
 
 ## Package and Source Conventions
 
@@ -300,6 +300,7 @@ For this project, the install target is **~/.pi-extensions/<extension-name>**, n
 - the installer must use deterministic file copy, not symbolic links
 - the install target should preserve the package name as the installed identity
 - the installer should support clean updates and removals
+- bootstrap should create `~/.pi/agent/settings.json` if it does not already exist and keep the `packages` list in sync
 
 ## Install Concept
 
@@ -312,7 +313,8 @@ Desired behavior:
 3. **determine install path as ~/.pi-extensions/<name>**
 4. run the code-based TypeScript/package validator before installation
 5. **deterministically copy source files to ~/.pi-extensions/<name>**
-6. keep the source workspace untouched
+6. create or update `~/.pi/agent/settings.json` so the installed path is listed in `packages`
+7. keep the source workspace untouched
 
 The mechanism is a **deterministic file copy** implemented in `installer.ts`, not pi's built-in package manager.
 
@@ -471,6 +473,7 @@ The extension should support a clean lifecycle for external development and inst
 - resolve the package name and entrypoint
 - remove existing installation if present
 - deterministically copy to ~/.pi-extensions/<name>
+- create or update `~/.pi/agent/settings.json` so `packages` includes the installed path
 - preserve the installed identity and metadata
 - fail safely if validation does not pass
 
@@ -499,7 +502,7 @@ The extension should support a clean lifecycle for external development and inst
 5. Tool returns a clean extension plan or scaffold guidance
 6. The extension is developed in an external workspace
 7. **Documentation is generated using LLM analysis of the codebase**
-8. The install step places it into pi's discovery path
+8. The install step places it into pi's discovery path and records it in `~/.pi/agent/settings.json`
 
 ## Open Questions
 

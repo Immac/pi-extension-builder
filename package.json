@@ -18,6 +18,8 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "validate": "npm run build && node dist/cli.js validate",
+    "bootstrap": "npm run build && node dist/cli.js bootstrap",
+    "self-install": "npm run build && node dist/cli.js bootstrap",
     "validate:src": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

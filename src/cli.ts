@@ -2,6 +2,7 @@
 import path from 'node:path';
 import process from 'node:process';
 import { validateExtensionProject } from './validator';
+import { runDeterministicInstall } from './installer';
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -11,20 +12,44 @@ async function main(): Promise<void> {
   const target = positional[1] ? path.resolve(positional[1]) : process.cwd();
   const jsonOutput = flags.has('--json');
 
-  if (command !== 'validate' && command !== 'review') {
-    printUsageAndExit();
+  if (command === 'validate' || command === 'review') {
+    const result = await validateExtensionProject(target);
+
+    if (jsonOutput) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else {
+      process.stdout.write(formatResult(result));
+    }
+
+    process.exitCode = result.status === 'fail' ? 1 : 0;
     return;
   }
 
-  const result = await validateExtensionProject(target);
+  if (command === 'bootstrap' || command === 'install-self') {
+    const result = await validateExtensionProject(process.cwd());
 
-  if (jsonOutput) {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  } else {
-    process.stdout.write(formatResult(result));
+    if (jsonOutput) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else {
+      process.stdout.write(formatResult(result));
+    }
+
+    if (result.status === 'fail') {
+      process.exitCode = 1;
+      return;
+    }
+
+    const installResult = runDeterministicInstall({
+      sourcePath: process.cwd(),
+      validation: result,
+    });
+
+    process.stdout.write(`${installResult.message}\n`);
+    process.exitCode = installResult.success ? 0 : 1;
+    return;
   }
 
-  process.exitCode = result.status === 'fail' ? 1 : 0;
+  printUsageAndExit();
 }
 
 function formatResult(result: Awaited<ReturnType<typeof validateExtensionProject>>): string {
@@ -60,7 +85,7 @@ function formatLocation(file?: string, line?: number, column?: number): string {
 }
 
 function printUsageAndExit(): void {
-  process.stderr.write('Usage: pi-extension-creator validate <path> [--json]\n');
+  process.stderr.write('Usage: pi-extension-creator validate <path> [--json] | bootstrap [--json]\n');
   process.exitCode = 2;
 }
 

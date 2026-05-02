@@ -68,18 +68,34 @@ Copies extensions to **~/.pi-extensions/<name>**, not a suggestion
 ### Install into pi
 
 ```bash
-# From this directory, use the extension_creator tool
-extension_creator(goal="Install the pi-extension-creator", mode="install", path="./extension-creator")
+# First-time setup for this repo
+npm install
+npm run bootstrap
 ```
 
-Or from the command line:
+`bootstrap` is only for the first install. At that point this repo is still just a normal npm package, not yet a loaded pi extension, so bootstrap acts as the bridge into pi’s extension folder and into pi’s config.
+
+`bootstrap` is the same as a self-install: it validates the package, installs this repo, and creates or updates `~/.pi/agent/settings.json` so pi can discover it:
+
+```text
+~/.pi-extensions/pi-extension-creator
+```
+
+If you prefer, you can use the equivalent command:
 
 ```bash
-# Build the extension first
-npm install && npm run build
+npm run self-install
+```
 
-# Then use the extension_creator tool to install
-# This deterministically copies to ~/.pi-extensions/<extension-name>
+Once installed, it behaves like any other pi extension; future updates can use the normal extension workflow or a reinstall from this repo.
+
+The installer writes the `packages` list in `~/.pi/agent/settings.json`. If that file does not exist yet, bootstrap creates it.
+
+Or from the tool interface:
+
+```bash
+# From this directory, use the extension_creator tool
+extension_creator(goal="Install the pi-extension-creator", mode="install", path="./extension-creator")
 ```
 
 ---

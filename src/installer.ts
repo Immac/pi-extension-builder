@@ -84,43 +84,40 @@ export function runDeterministicInstall(params: {
 
 function cleanupSettingsJson(sourcePath: string, installPath: string, extensionName: string): void {
   const settingsPath = path.join(os.homedir(), '.pi', 'agent', 'settings.json');
-  if (!fs.existsSync(settingsPath)) return;
+  const settingsDir = path.dirname(settingsPath);
 
   try {
-    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-    if (!Array.isArray(settings.packages)) return;
+    fs.mkdirSync(settingsDir, { recursive: true });
 
-    // Normalize sourcePath to absolute without trailing slash
     const sourceNormalized = path.resolve(sourcePath);
+    const installNormalized = path.resolve(installPath);
 
-    
+    let settings: { packages?: string[] } = {};
     let changed = false;
-    let cleaned = settings.packages.filter((p: string) => {
-      // Remove the source path if it's listed (duplicate entry)
+
+    if (fs.existsSync(settingsPath)) {
+      const parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as { packages?: unknown };
+      if (Array.isArray(parsed.packages)) {
+        settings.packages = parsed.packages.filter((value): value is string => typeof value === 'string');
+      }
+    }
+
+    const packages = Array.isArray(settings.packages) ? settings.packages : [];
+    const cleaned = packages.filter((p: string) => {
       if (path.resolve(p) === sourceNormalized) {
         changed = true;
-        return false; // remove it
+        return false;
       }
       return true;
     });
 
-    // Normalize installPath to absolute
-    const installNormalized = path.resolve(installPath);
-    
-    // Replace with install path (only if it wasn't already there)
-    const hasInstallPath = cleaned.some((p: string) => 
-      path.resolve(p) === installNormalized
-    );
-    
-    if (!hasInstallPath) {
-      cleaned = [installPath, ...cleaned];
+    if (!cleaned.some((p: string) => path.resolve(p) === installNormalized)) {
+      cleaned.unshift(installPath);
       changed = true;
     }
 
-    // Only write if we actually changed something
-    if (changed) {
-      settings.packages = cleaned;
-      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+    if (!fs.existsSync(settingsPath) || changed) {
+      fs.writeFileSync(settingsPath, JSON.stringify({ packages: cleaned }, null, 2) + '\n');
     }
   } catch {
     // Ignore errors - settings.json is optional
