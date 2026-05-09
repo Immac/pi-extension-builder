@@ -37,26 +37,30 @@ export async function validateExtensionProject(packagePathInput: string): Promis
   const manifestPath = path.join(packagePath, 'package.json');
   details.manifestPath = manifestPath;
 
+  // Collect all diagnostics before returning — batch everything for one-pass UX
+  let manifestFound = false;
+  let manifest: PackageManifest | undefined;
+
   if (!fs.existsSync(manifestPath)) {
     errors.push(record('manifest.missing', 'package.json was not found in the project root.', 'error', manifestPath));
-    return finalize({ details, errors, warnings });
+  } else {
+    manifestFound = true;
+    details.manifestFound = true;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as PackageManifest;
+    } catch (error) {
+      errors.push(record('manifest.invalid-json', `package.json could not be parsed: ${(error as Error).message}`, 'error', manifestPath));
+    }
   }
 
-  details.manifestFound = true;
-
-  let manifest: PackageManifest;
-  try {
-    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as PackageManifest;
-  } catch (error) {
-    errors.push(record('manifest.invalid-json', `package.json could not be parsed: ${(error as Error).message}`, 'error', manifestPath));
-    return finalize({ details, errors, warnings });
-  }
-
-  const packageName = typeof manifest.name === 'string' ? manifest.name : undefined;
-  if (!packageName) {
-    errors.push(record('manifest.name.missing', 'package.json must declare a package name.', 'error', manifestPath));
-  } else if (!KEBAB_CASE_RE.test(packageName)) {
-    errors.push(record('manifest.name.not-kebab-case', `Package name "${packageName}" must use kebab-case.`, 'error', manifestPath));
+  let packageName: string | undefined;
+  if (manifest) {
+    packageName = typeof manifest.name === 'string' ? manifest.name : undefined;
+    if (!packageName) {
+      errors.push(record('manifest.name.missing', 'package.json must declare a package name.', 'error', manifestPath));
+    } else if (!KEBAB_CASE_RE.test(packageName)) {
+      errors.push(record('manifest.name.not-kebab-case', `Package name "${packageName}" must use kebab-case.`, 'error', manifestPath));
+    }
   }
 
   const entrypointInfo = resolveEntrypoint(manifest, manifestPath);
@@ -86,23 +90,24 @@ export async function validateExtensionProject(packagePathInput: string): Promis
         warnings.push(record('entrypoint.not-typescript', 'The entrypoint does not resolve to a TypeScript source file by default.', 'warning', entrypointPath));
       }
 
-      warnings.push(...analyzeDependencies(manifest, entrypointPath));
+      if (manifest) {
+        warnings.push(...analyzeDependencies(manifest, entrypointPath));
+      }
     }
   }
 
-  const tsconfigPath = resolveTsconfigPath(manifest, packagePath);
+  const tsconfigPath = manifest ? resolveTsconfigPath(manifest, packagePath) : path.join(packagePath, 'tsconfig.json');
   details.tsconfig = tsconfigPath;
   details.tsconfigFound = fs.existsSync(tsconfigPath);
 
   if (!details.tsconfigFound) {
     errors.push(record('tsconfig.missing', `TypeScript configuration file was not found: ${tsconfigPath}`, 'error', tsconfigPath));
-    return finalize({ details, errors, warnings, packageName, entrypoint: entrypointPath, tsconfig: tsconfigPath });
+  } else {
+    const compilerResult = runCompiler(tsconfigPath, packagePath);
+    details.compilerChecked = true;
+    errors.push(...compilerResult.errors);
+    warnings.push(...compilerResult.warnings);
   }
-
-  const compilerResult = runCompiler(tsconfigPath, packagePath);
-  details.compilerChecked = true;
-  errors.push(...compilerResult.errors);
-  warnings.push(...compilerResult.warnings);
 
   return finalize({
     details,
@@ -114,7 +119,10 @@ export async function validateExtensionProject(packagePathInput: string): Promis
   });
 }
 
-function resolveEntrypoint(manifest: PackageManifest, manifestPath: string): { entrypoint?: string; errors: DiagnosticRecord[]; warnings: DiagnosticRecord[] } {
+function resolveEntrypoint(manifest: PackageManifest | undefined, manifestPath: string): { entrypoint?: string; errors: DiagnosticRecord[]; warnings: DiagnosticRecord[] } {
+  if (!manifest) {
+    return { errors: [], warnings: [] };
+  }
   const errors: DiagnosticRecord[] = [];
   const warnings: DiagnosticRecord[] = [];
   const piExtensions = Array.isArray(manifest.pi?.extensions)
@@ -188,8 +196,8 @@ function resolveEntrypointFile(
   return declaredPath;
 }
 
-function resolveTsconfigPath(manifest: PackageManifest, packagePath: string): string {
-  const declared = typeof manifest.pi?.tsconfig === 'string' ? manifest.pi.tsconfig.trim() : undefined;
+function resolveTsconfigPath(manifest: PackageManifest | undefined, packagePath: string): string {
+  const declared = manifest && typeof manifest.pi?.tsconfig === 'string' ? manifest.pi.tsconfig.trim() : undefined;
   return path.resolve(packagePath, declared ?? 'tsconfig.json');
 }
 
@@ -263,8 +271,8 @@ function parseCompilerOutput(output: string): DiagnosticRecord[] {
   return diagnostics;
 }
 
-function analyzeDependencies(manifest: PackageManifest, entrypointPath: string): DiagnosticRecord[] {
-  if (!fs.existsSync(entrypointPath)) {
+function analyzeDependencies(manifest: PackageManifest | undefined, entrypointPath: string): DiagnosticRecord[] {
+  if (!manifest || !fs.existsSync(entrypointPath)) {
     return [];
   }
 
