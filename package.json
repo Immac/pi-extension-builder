@@ -24,6 +24,9 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "validate": "npm run build && node dist/cli.js validate",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "bootstrap": "npm run build && node dist/cli.js bootstrap",
     "self-install": "npm run build && node dist/cli.js bootstrap",
     "validate:src": "tsc -p tsconfig.json --noEmit"
@@ -36,6 +39,8 @@
     "@mariozechner/pi-coding-agent": "*"
   },
   "devDependencies": {
-    "@types/node": "^20.19.40"
+    "@types/node": "^20.19.40",
+    "@vitest/coverage-v8": "^4.1.5",
+    "vitest": "^4.1.5"
   }
 }
