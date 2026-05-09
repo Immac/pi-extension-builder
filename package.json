@@ -11,7 +11,7 @@
   },
   "pi": {
     "extensions": [
-      "./src/extensions/extension-creator"
+      "./src/extension"
     ],
     "prompts": [
       "./prompts"
