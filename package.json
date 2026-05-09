@@ -11,7 +11,7 @@
   },
   "pi": {
     "extensions": [
-      "./src/extension"
+      "./src/extension.ts"
     ],
     "prompts": [
       "./prompts"
