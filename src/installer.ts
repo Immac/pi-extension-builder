@@ -119,8 +119,9 @@ function cleanupSettingsJson(sourcePath: string, installPath: string, extensionN
     if (!fs.existsSync(settingsPath) || changed) {
       fs.writeFileSync(settingsPath, JSON.stringify({ packages: cleaned }, null, 2) + '\n');
     }
-  } catch {
-    // Ignore errors - settings.json is optional
+  } catch (error) {
+    // settings.json is optional — log the error but don't block install
+    console.warn(`[extension-creator] Warning: could not update settings.json: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
