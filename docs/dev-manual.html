@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pi-extension-creator — Developer Manual</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --bg-code: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+    --accent-purple: #bc8cff;
+    --accent-pink: #f778ba;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 1000px; margin: 0 auto; padding: 40px 24px; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+    margin-bottom: 32px;
+  }
+  header h1 { font-size: 2.2em; font-weight: 700; margin-bottom: 8px; }
+  header .subtitle { color: var(--text-muted); font-size: 1.1em; }
+  .badges { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+  }
+  .badge.pink { border-color: var(--accent-pink); color: var(--accent-pink); }
+  .badge.blue { border-color: var(--accent); color: var(--accent); }
+  .badge.green { border-color: var(--accent-green); color: var(--accent-green); }
+  .badge.purple { border-color: var(--accent-purple); color: var(--accent-purple); }
+
+  nav.toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  nav.toc h2 { font-size: 1em; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 12px; }
+  nav.toc ol { padding-left: 20px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  h2 { font-size: 1.6em; margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h2:first-of-type { margin-top: 0; }
+  h3 { font-size: 1.2em; margin: 28px 0 12px; color: var(--accent); }
+  h4 { font-size: 1.05em; margin: 20px 0 8px; color: var(--accent-pink); }
+
+  p { margin: 0 0 12px; }
+  ul, ol { margin: 0 0 12px; padding-left: 24px; }
+  li { margin: 4px 0; }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: .88em;
+    background: var(--bg-code);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    font-size: .85em;
+    line-height: 1.5;
+  }
+  pre code { border: none; padding: 0; background: transparent; font-size: 1em; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: .93em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+  }
+  th { background: var(--bg-card); font-weight: 600; }
+  tr:nth-child(even) { background: rgba(255,255,255,.02); }
+
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: rgba(88,166,255,.08);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 12px 0 20px;
+  }
+  .callout.warn { border-left-color: var(--accent-orange); background: rgba(210,153,34,.08); }
+  .callout.err  { border-left-color: var(--accent-red); background: rgba(248,81,73,.08); }
+  .callout.green { border-left-color: var(--accent-green); background: rgba(63,185,80,.08); }
+
+  .module-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin: 16px 0 24px;
+  }
+  .module-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .module-card h4 { margin-top: 0; color: var(--text); font-size: 1.1em; }
+  .module-card .filepath { font-family: 'SF Mono', monospace; font-size: .85em; color: var(--accent); margin-bottom: 8px; }
+  .module-card .lines { font-size: .85em; color: var(--text-muted); margin-bottom: 8px; }
+  .module-card p { font-size: .93em; color: var(--text-muted); }
+  .module-card ul { font-size: .93em; color: var(--text-muted); }
+
+  .file-tree {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 12px 0 20px;
+    font-family: 'SF Mono', monospace;
+    font-size: .88em;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+  .file-tree .dir { color: var(--accent); }
+  .file-tree .file { color: var(--text-muted); }
+  .file-tree .active { color: var(--accent-green); font-weight: 600; }
+
+  .flow-diagram {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 12px 0 20px;
+    font-family: 'SF Mono', monospace;
+    font-size: .85em;
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--text-muted);
+  }
+  .flow-diagram .hl { color: var(--accent); }
+  .flow-diagram .ok { color: var(--accent-green); }
+  .flow-diagram .arrow { color: var(--accent-orange); }
+  .flow-diagram .node { color: var(--accent-pink); }
+
+  @media (max-width: 640px) {
+    .container { padding: 20px 12px; }
+    header h1 { font-size: 1.6em; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>pi-extension-creator</h1>
+  <p class="subtitle">Developer Manual — v0.2.0</p>
+  <div class="badges">
+    <span class="badge blue">8 modules</span>
+    <span class="badge pink">41 tests</span>
+    <span class="badge green">pre-commit hooks</span>
+    <span class="badge purple">TypeScript strict</span>
+  </div>
+</header>
+
+<nav class="toc">
+<h2>Table of Contents</h2>
+<ol>
+  <li><a href="#getting-started">Getting Started</a></li>
+  <li><a href="#architecture">Architecture Overview</a></li>
+  <li><a href="#modules">Module Reference</a></li>
+  <li><a href="#data-flow">Data Flow</a></li>
+  <li><a href="#tests">Testing Guide</a></li>
+  <li><a href="#extending">Extending the System</a></li>
+  <li><a href="#design">Design Decisions</a></li>
+  <li><a href="#changelog">Changelog</a></li>
+</ol>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="getting-started">1. Getting Started</h2>
+
+<h3>Prerequisites</h3>
+<ul>
+  <li><strong>Node.js</strong> 18+ (uses <code>fs.cpSync</code> which requires Node 16.7+)</li>
+  <li><strong>TypeScript</strong> 5.6+</li>
+</ul>
+
+<h3>Setup</h3>
+<pre><code>git clone &lt;repo-url&gt;
+cd pi-extension-creator
+npm install            # Installs deps + sets up pre-commit hook
+npm run build          # Compile TypeScript → dist/
+npm test              # Run all 41 tests</code></pre>
+
+<h3>Available Scripts</h3>
+<table>
+  <tr><th>Command</th><th>Description</th></tr>
+  <tr><td><code>npm run build</code></td><td>Compile TypeScript (<code>tsc -p tsconfig.json</code>)</td></tr>
+  <tr><td><code>npm test</code></td><td>Run all tests (<code>vitest run</code>)</td></tr>
+  <tr><td><code>npm run test:watch</code></td><td>Watch mode</td></tr>
+  <tr><td><code>npm run test:coverage</code></td><td>With coverage report</td></tr>
+  <tr><td><code>npm run validate:src</code></td><td>Type-check without emitting</td></tr>
+  <tr><td><code>npm run precommit</code></td><td>Type-check + test (runs automatically on commit)</td></tr>
+  <tr><td><code>npm run clean</code></td><td>Remove dist/</td></tr>
+  <tr><td><code>npm run bootstrap</code></td><td>Build + self-install into pi</td></tr>
+</table>
+
+<h3>Pre-commit Hook</h3>
+<p>A pre-commit hook is installed by <code>simple-git-hooks</code> during <code>npm install</code>. It runs <code>tsc --noEmit && vitest run</code> before every commit.</p>
+
+<div class="callout green">
+  <strong>Tip:</strong> If the hook fails, your commit is blocked until all type errors and test failures are fixed.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="architecture">2. Architecture Overview</h2>
+
+<div class="file-tree">
+<span class="dir">src/</span>
+├── <span class="active">extension.ts</span>    <span class="file"># Tool entrypoint</span>
+├── <span class="active">router.ts</span>       <span class="file"># Mode/stage/kind inference</span>
+├── <span class="active">planner.ts</span>      <span class="file"># Build plan generation</span>
+├── <span class="active">validator.ts</span>    <span class="file"># Code-based validation engine</span>
+├── <span class="active">installer.ts</span>    <span class="file"># Deterministic install to ~/.pi-extensions/</span>
+├── <span class="active">documenter.ts</span>   <span class="file"># Automatic doc generation</span>
+├── <span class="active">renderer.ts</span>     <span class="file"># Payload rendering + next-action</span>
+├── <span class="active">cli.ts</span>          <span class="file"># Standalone CLI</span>
+├── types.ts        <span class="file"># Shared interfaces</span>
+├── shims.d.ts      <span class="file"># Pi SDK type shims</span>
+<span class="dir">└── __tests__/</span>
+    ├── helpers.ts
+    ├── validator.test.ts
+    ├── installer.test.ts
+    └── router.test.ts
+</div>
+
+<h3>Module Dependency Graph</h3>
+<div class="flow-diagram"><span class="node">extension.ts</span>  (tool entrypoint — ~100 loc)
+     │
+     ├──→ <span class="hl">router.ts</span>       Mode/stage/kind normalization
+     ├──→ <span class="hl">planner.ts</span>      Build plan generation
+     ├──→ <span class="hl">validator.ts</span>    code-based validation (manifest + tsc)
+     ├──→ <span class="hl">installer.ts</span>    deterministic copy to ~/.pi-extensions/
+     ├──→ <span class="hl">documenter.ts</span>   automatic README + ARCHITECTURE generation
+     └──→ <span class="hl">renderer.ts</span>     payload rendering + next-action selection
+
+<span class="node">cli.ts</span>  (standalone — shares validator.ts + installer.ts)
+     │
+     └──→ validator.ts
+          installer.ts</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="modules">3. Module Reference</h2>
+
+<div class="module-grid">
+
+<div class="module-card">
+<div class="filepath">src/extension.ts</div>
+<div class="lines">~100 lines — 8 imports, 1 tool definition, 1 export</div>
+<h4>Responsibility</h4>
+<p>Register the <code>extension_creator</code> tool with pi's <code>defineTool()</code> and coordinate the full lifecycle.</p>
+<h4>Key behavior</h4>
+<ul>
+  <li>Normalizes mode/stage via <code>router.ts</code></li>
+  <li>Runs validation for <code>validate</code>, <code>review</code>, <code>install</code>, <code>update</code> modes</li>
+  <li>Generates plans for <code>plan</code>/<code>scaffold</code> modes via <code>planner.ts</code></li>
+  <li>Triggers install for <code>install</code> mode via <code>installer.ts</code></li>
+  <li>Generates docs for <code>document</code> mode via <code>documenter.ts</code></li>
+  <li>Formats response via <code>renderer.ts</code></li>
+</ul>
+<h4>Exports</h4>
+<p><code>extensionCreator(pi: ExtensionAPI): void</code> — default export, registers the tool</p>
+</div>
+
+<div class="module-card">
+<div class="filepath">src/router.ts</div>
+<div class="lines">~90 lines — 4 exported functions, 2 types</div>
+<h4>Responsibility</h4>
+<p>Infer the lifecycle stage and starting mode from natural language requests. This is the "brain" that translates user intent into structured actions.</p>
+<h4>Exports</h4>
+<ul>
+  <li><code>normalizeMode(value, stage, goal, path?) → Mode</code> — infers mode from stage, goal keywords, or path</li>
+  <li><code>normalizeStage(value, goal, path?) → Stage</code> — infers stage from goal keywords or path</li>
+  <li><code>modeFromStage(stage) → Mode | undefined</code> — maps stage to default mode</li>
+  <li><code>inferKindFromGoal(goal) → string | undefined</code> — detects extension type</li>
+  <li><code>Mode</code> type: <code>'plan' | 'scaffold' | 'review' | 'document' | 'validate' | 'install' | 'update' | 'remove'</code></li>
+  <li><code>Stage</code> type: <code>'idea' | 'draft' | 'workspace' | 'validated' | 'installed' | 'maintenance' | 'unknown'</code></li>
+</ul>
+<h4>Inference Priority</h4>
+<ol>
+  <li>Explicit mode/stage parameter</li>
+  <li>Stage-based default (idea → plan, draft → scaffold, etc.)</li>
+  <li>Goal keyword matching</li>
+  <li>Path presence → review</li>
+  <li>Fallback → plan</li>
+</ol>
+</div>
+
+<div class="module-card">
+<div class="filepath">src/planner.ts</div>
+<div class="lines">~40 lines — 1 exported function, 1 interface</div>
+<h4>Responsibility</h4>
+<p>Generate structured build plans for new extensions.</p>
+<h4>Exports</h4>
+<ul>
+  <li><code>buildPlan({ goal, extensionKind, strict, note }) → ExtensionPlan</code></li>
+  <li><code>ExtensionPlan</code> — <code>{ title, summary, files, steps, cautions }</code></li>
+</ul>
+</div>
+
+<div class="module-card">
+<div class="filepath">src/validator.ts</div>
+<div class="lines">~280 lines — 1 exported async function, ~12 helper functions</div>
+<h4>Responsibility</h4>
+<p>Validate extension packages against pi's architecture rules. This is the quality gate.</p>
+<h4>Key behaviors</h4>
+<ul>
+  <li>Reads and parses <code>package.json</code></li>
+  <li>Resolves the declared entrypoint (pi.extensions → pi.entrypoint → main)</li>
+  <li>Enforces kebab-case package naming</li>
+  <li>Validates <code>tsconfig.json</code> exists</li>
+  <li>Runs <code>tsc --noEmit</code> with the project's tsconfig</li>
+  <li>Parses compiler output (handles both structured and free-form errors)</li>
+  <li>Scans entrypoint imports for undeclared dependencies</li>
+  <li><strong>Batches all diagnostics</strong> — no early returns</li>
+</ul>
+<h4>Export</h4>
+<p><code>validateExtensionProject(packagePath: string) → Promise&lt;ValidationResult&gt;</code></p>
+</div>
+
+<div class="module-card">
+<div class="filepath">src/installer.ts</div>
+<div class="lines">~90 lines — 1 exported function, 1 internal function</div>
+<h4>Responsibility</h4>
+<p>Copy a validated extension package to <code>~/.pi-extensions/&lt;name&gt;</code> deterministically.</p>
+<h4>Key behaviors</h4>
+<ul>
+  <li>Refuses to install if validation status is <code>fail</code></li>
+  <li>Uses package name from validation result for install directory</li>
+  <li>Uses <code>fs.cpSync()</code> for fast recursive copy</li>
+  <li>Replaces existing installation automatically</li>
+  <li>Updates <code>~/.pi/agent/settings.json</code></li>
+  <li>Logs settings.json errors via <code>console.warn</code></li>
+</ul>
+<h4>Export</h4>
+<p><code>runDeterministicInstall({ sourcePath, validation }) → InstallResult</code></p>
+</div>
+
+<div class="module-card">
+<div class="filepath">src/documenter.ts</div>
+<div class="lines">~260 lines — 1 exported async function, ~12 internal helpers</div>
+<h4>Responsibility</h4>
+<p>Analyze extension source code and generate README.md and ARCHITECTURE.md automatically.</p>
+<h4>Key behaviors</h4>
+<ul>
+  <li>Reads <code>package.json</code> for metadata</li>
+  <li>Resolves entrypoint from manifest (supports pi.extensions, pi.entrypoint, main)</li>
+  <li>Detects extension kind by scanning source and description</li>
+  <li>Detects commands (registerCommand), tools (registerTool), prompts, skills</li>
+  <li>Generates README with badges, features, install guide, dev commands</li>
+  <li>Generates ARCHITECTURE.md for complex extensions</li>
+  <li>Writes files directly to the source directory</li>
+</ul>
+<h4>Export</h4>
+<p><code>generateDocumentation(sourcePath: string) → Promise&lt;GeneratedDocs&gt;</code></p>
+</div>
+
+<div class="module-card">
+<div class="filepath">src/renderer.ts</div>
+<div class="lines">~190 lines — 3 exported functions, 2 interfaces</div>
+<h4>Responsibility</h4>
+<p>Convert internal <code>ToolPayload</code> into user-facing output and determine the next action.</p>
+<h4>Exports</h4>
+<ul>
+  <li><code>renderPayload(payload) → string</code> — full text rendering</li>
+  <li><code>chooseNextAction(...) → string</code> — determine what user should do next</li>
+  <li><code>buildDocumentationGuidance(...) → DocumentationGuidance</code> — legacy fallback</li>
+  <li><code>ToolPayload</code> — all fields returned by the tool</li>
+  <li><code>DocumentationGuidance</code> — documentation metadata</li>
+</ul>
+</div>
+
+<div class="module-card">
+<div class="filepath">src/cli.ts</div>
+<div class="lines">~140 lines — 1 main function, 2 helpers</div>
+<h4>Responsibility</h4>
+<p>Provide a standalone command-line interface.</p>
+<h4>Commands</h4>
+<ul>
+  <li><code>validate [path]</code> — Validate an extension package</li>
+  <li><code>review [path]</code> — Same as validate</li>
+  <li><code>bootstrap</code> — Build, validate, and install self</li>
+  <li><code>install-self</code> — Same as bootstrap</li>
+</ul>
+<h4>Flags</h4>
+<p><code>--help</code>, <code>--version</code>, <code>--json</code>, <code>--verbose</code></p>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="data-flow">4. Data Flow</h2>
+
+<h3>Validation Flow</h3>
+<div class="flow-diagram"> path → <span class="hl">validator.ts</span>
+   │
+   ├── 1. Read package.json
+   │     ├── missing   → manifest.missing (error)
+   │     └── invalid   → manifest.invalid-json (error)
+   │
+   ├── 2. Check package name
+   │     ├── missing   → manifest.name.missing (error)
+   │     └── not kebab → manifest.name.not-kebab-case (error)
+   │
+   ├── 3. Resolve entrypoint
+   │     ├── pi.extensions[0]  (preferred)
+   │     ├── pi.entrypoint     (fallback)
+   │     ├── main              (legacy, warning)
+   │     └── none of the above → manifest.entrypoint.missing (error)
+   │
+   ├── 4. Verify entrypoint file exists
+   │     └── missing → entrypoint.missing (error)
+   │
+   ├── 5. Check entrypoint naming
+   │     ├── index.ts  → entrypoint.index-file (warning)
+   │     └── mismatched name → entrypoint.named-file (warning)
+   │
+   ├── 6. Scan imports for undeclared deps
+   │     └── found undeclared → dependencies.undeclared (warning)
+   │
+   ├── 7. Check tsconfig.json
+   │     └── missing → tsconfig.missing (error)
+   │
+   ├── 8. Run tsc --noEmit
+   │     ├── compiler not found → compiler.not-found (error)
+   │     └── TS errors/warnings → parsed diagnostics
+   │
+   └──→ <span class="ok">ValidationResult { status, errors, warnings, details }</span></div>
+
+<h3>Install Flow</h3>
+<div class="flow-diagram"> path → <span class="hl">installer.ts</span>
+   │
+   ├── 1. Check validation.status !== 'fail'
+   │     └── fail  → return InstallResult { success: false }
+   │
+   ├── 2. Resolve name: validation.packageName || path.basename(sourcePath)
+   │
+   ├── 3. Check source exists
+   │     └── missing  → return InstallResult { success: false }
+   │
+   ├── 4. Ensure ~/.pi-extensions/ exists
+   │
+   ├── 5. Remove existing ~/.pi-extensions/&lt;name&gt; if present
+   │
+   ├── 6. <span class="ok">fs.cpSync(source, target, { recursive: true, force: true })</span>
+   │
+   ├── 7. Update ~/.pi/agent/settings.json
+   │     └── failure → console.warn (non-blocking)
+   │
+   └──→ <span class="ok">InstallResult { success, extensionName, installPath, message }</span></div>
+
+<h3>Document Flow</h3>
+<div class="flow-diagram"> path → <span class="hl">documenter.ts</span>
+   │
+   ├── 1. Read package.json (name, description)
+   ├── 2. Resolve entrypoint source file
+   ├── 3. Read entrypoint source
+   ├── 4. Detect extension kind (tool, command, prompt, etc.)
+   ├── 5. Detect commands (registerCommand), tools (registerTool)
+   ├── 6. Check for prompts/ skills directories
+   ├── 7. <span class="ok">generateReadme() → string</span>
+   ├── 8. If complex: <span class="ok">generateArchitecture() → string</span>
+   ├── 9. writeFileSync(README.md)
+   └── 10. writeFileSync(ARCHITECTURE.md) (optional)
+       └──→ <span class="ok">GeneratedDocs { readme, architecture, filesWritten }</span></div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="tests">5. Testing Guide</h2>
+
+<h3>Test Structure</h3>
+<table>
+  <tr><th>Suite</th><th>File</th><th>Tests</th><th>What It Covers</th></tr>
+  <tr><td>Validator</td><td><code>validator.test.ts</code></td><td>10</td><td>Manifest checks, entrypoint resolution, tsconfig handling, batch diagnostics</td></tr>
+  <tr><td>Installer</td><td><code>installer.test.ts</code></td><td>5</td><td>Validation gate, source-not-found, directory naming, replacement semantics, validation override</td></tr>
+  <tr><td>Router</td><td><code>router.test.ts</code></td><td>26</td><td>Mode inference (9), stage inference (5), modeFromStage (1), kind inference (11)</td></tr>
+</table>
+
+<h3>Test Helper</h3>
+<p><code>src/__tests__/helpers.ts</code> exports <code>createTestPackage(overrides?)</code> which creates a temporary directory with a configurable test extension package:</p>
+<pre><code>createTestPackage({
+  name: 'my-ext',
+  hasPackageJson: true,
+  hasTsconfig: true,
+  hasEntrypoint: true,
+  packageJsonContent: { name: 'my-ext', version: '1.0.0' },
+  entrypointPath: './src/extensions/my-ext',
+  entrypointContent: 'export default function() {}',
+  tsconfigContent: '{ ... }',
+})  // → { dir: '/tmp/ext-creator-test-xxx', cleanup: () => void }</code></pre>
+
+<h3>Running Tests</h3>
+<pre><code># Run all tests
+npm test
+
+# Run a specific file
+npx vitest run src/__tests__/validator.test.ts
+
+# Run with verbose output
+npx vitest run --reporter=verbose
+
+# Watch mode
+npm run test:watch
+
+# With coverage
+npm run test:coverage</code></pre>
+
+<h3>Adding a New Test</h3>
+<pre><code>// src/__tests__/my-feature.test.ts
+import { describe, it, expect } from 'vitest';
+import { myFunction } from '../my-feature';
+
+describe('myFunction', () => {
+  it('does the thing', () => {
+    expect(myFunction()).toBe('expected');
+  });
+});</code></pre>
+
+<div class="callout warn">
+  <strong>Important:</strong> Tests must be <strong>deterministic</strong>. Use <code>createTestPackage()</code> for temp directories. Never hardcode paths.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="extending">6. Extending the System</h2>
+
+<h3>Adding a New Validation Check</h3>
+<ol>
+  <li>Add the check logic in <code>src/validator.ts</code> — push to <code>errors[]</code> or <code>warnings[]</code></li>
+  <li>Use a descriptive error code (e.g., <code>manifest.*</code>, <code>entrypoint.*</code>, <code>tsconfig.*</code>, <code>compiler.*</code>)</li>
+  <li>Add a test in <code>src/__tests__/validator.test.ts</code></li>
+</ol>
+
+<h3>Adding a New Mode</h3>
+<ol>
+  <li>Add the mode string to <code>Mode</code> type in <code>src/router.ts</code></li>
+  <li>Add inference logic in <code>normalizeMode()</code> in <code>src/router.ts</code></li>
+  <li>Add handling in <code>src/extension.ts</code> <code>execute()</code> body</li>
+  <li>Add next-action logic in <code>src/renderer.ts</code> <code>chooseNextAction()</code></li>
+  <li>Add tests in <code>src/__tests__/router.test.ts</code></li>
+</ol>
+
+<h3>Modifying the Documentation Generator</h3>
+<ol>
+  <li>Edit <code>src/documenter.ts</code> — <code>generateReadme()</code> or <code>generateArchitecture()</code></li>
+  <li>The readme/architecture are generated as <strong>pure function strings</strong></li>
+  <li>If adding a new detection, update <code>detectExtensionKind()</code> and the detection helpers</li>
+</ol>
+
+<h3>Modifying the Installer</h3>
+<ol>
+  <li>Edit <code>src/installer.ts</code></li>
+  <li>The install path is always <code>~/.pi-extensions/&lt;packageName&gt;</code></li>
+  <li>Settings.json updates are non-blocking (errors are logged, not thrown)</li>
+</ol>
+
+<h3>Coding Standards</h3>
+<ul>
+  <li><strong>TypeScript strict mode</strong> enabled in <code>tsconfig.json</code></li>
+  <li><strong>ES2022 target</strong>, <strong>Node16 module resolution</strong></li>
+  <li>Prefer <strong>named exports</strong> (except for extension entrypoint which uses default export)</li>
+  <li><strong>No <code>any</code></strong> unless absolutely necessary (pi SDK types use <code>any</code> in shims)</li>
+  <li>Tests should be <strong>deterministic</strong> and use temp directories</li>
+  <li>Add JSDoc comments for exported functions</li>
+</ol>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="design">7. Design Decisions</h2>
+
+<h3>Why fs.cpSync() instead of custom recursive copy?</h3>
+<p>Node 16.7+ provides native recursive <code>cpSync</code>. It's faster, handles edge cases (symlinks, permissions), and removes 19 lines of manual recursion from the codebase.</p>
+
+<h3>Why batch diagnostics instead of early returns?</h3>
+<p>One-pass validation reveals all issues at once, reducing the fix-revalidate loop from N iterations to 1. The user sees every problem in a single run.</p>
+
+<h3>Why console.warn instead of silent catch?</h3>
+<p>Silent error masking hides real problems (corrupt settings.json, permission issues). Logging gives debuggability without blocking installation.</p>
+
+<h3>Why 8 modules instead of 1?</h3>
+<p>The original <code>extension.ts</code> was ~400 lines handling mode inference, plan building, rendering, next-action logic, and documentation guidance — violating single responsibility. Splitting into 8 modules reduces the entrypoint to ~100 lines and makes each module independently testable.</p>
+
+<h3>Why TypeScript over JavaScript?</h3>
+<p>TypeScript provides type safety, better IDE support, and catches errors at compile time. The validator also runs <code>tsc --noEmit</code> as part of validation, ensuring extensions are type-safe before install.</p>
+
+<h3>Why deterministic file copy instead of symlinks?</h3>
+<p>File copies are explicit, portable, and don't break when the source is moved or deleted. The installer ensures pi always has a self-contained copy.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="changelog">8. Changelog</h2>
+
+<h3>v0.2.0 — 2026-05-09</h3>
+<h4>Added</h4>
+<ul>
+  <li><strong>8-module architecture</strong>: Split monolithic <code>extension.ts</code> (~400 lines) into <code>router.ts</code>, <code>planner.ts</code>, <code>renderer.ts</code>, <code>documenter.ts</code> — entrypoint now ~100 lines</li>
+  <li><strong>Real documentation generator</strong>: Analyzes source code and generates README/ARCHITECTURE</li>
+  <li><strong>41-test suite</strong>: Vitest with 10 validator tests, 5 installer tests, 26 router tests</li>
+  <li><strong>Pre-commit hook</strong>: Runs <code>tsc --noEmit && vitest run</code> on every commit</li>
+  <li><strong>CLI improvements</strong>: <code>--help</code>, <code>--version</code>, <code>--verbose</code>, unknown command detection</li>
+  <li><strong>Batch diagnostics</strong>: Validator collects all errors before returning</li>
+  <li><strong>Error logging</strong>: <code>cleanupSettingsJson</code> logs via <code>console.warn</code></li>
+</ul>
+
+<h4>Changed</h4>
+<ul>
+  <li><code>pi.extensions</code> points directly to <code>./src/extension</code> (removed indirection)</li>
+  <li><code>installer.ts</code> uses <code>fs.cpSync()</code> instead of custom recursion</li>
+  <li>Router fixed "uninstall" word-matching bug</li>
+  <li><code>.gitignore</code> no longer ignores <code>src/__tests__/</code></li>
+</ul>
+
+<h4>Removed</h4>
+<ul>
+  <li>Duplicate <code>extensions/</code> directories</li>
+  <li>Node.js built-in type shims (replaced by <code>@types/node</code>)</li>
+  <li>Custom <code>copyDirectory()</code> function</li>
+</ul>
+
+<h3>v0.1.0 — Initial Release</h3>
+<ul>
+  <li>Basic extension lifecycle tool</li>
+  <li>Deterministic file-copy install</li>
+  <li>CLI with validate and bootstrap commands</li>
+  <li>Prompt templates and skills</li>
+  <li>TypeScript compiler validation</li>
+  <li>Import dependency scanning</li>
+</ul>
+
+</div>
+</body>
+</html>

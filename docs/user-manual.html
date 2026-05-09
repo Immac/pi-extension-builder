@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pi-extension-creator — User Manual</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --bg-code: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+    --accent-purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+    margin-bottom: 32px;
+  }
+  header h1 { font-size: 2.2em; font-weight: 700; margin-bottom: 8px; }
+  header .subtitle { color: var(--text-muted); font-size: 1.1em; }
+  .badges { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+  }
+  .badge.green { border-color: var(--accent-green); color: var(--accent-green); }
+  .badge.blue { border-color: var(--accent-blue, #58a6ff); color: var(--accent-blue, #58a6ff); }
+  .badge.orange { border-color: var(--accent-orange); color: var(--accent-orange); }
+  .badge.purple { border-color: var(--accent-purple); color: var(--accent-purple); }
+
+  nav.toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  nav.toc h2 { font-size: 1em; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 12px; }
+  nav.toc ol { padding-left: 20px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  h2 { font-size: 1.6em; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.2em; margin: 24px 0 12px; color: var(--accent); }
+  h4 { font-size: 1.05em; margin: 16px 0 8px; }
+
+  p { margin: 0 0 12px; }
+  ul, ol { margin: 0 0 12px; padding-left: 24px; }
+  li { margin: 4px 0; }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: .88em;
+    background: var(--bg-code);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    font-size: .88em;
+    line-height: 1.5;
+  }
+  pre code { border: none; padding: 0; background: transparent; font-size: 1em; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: .93em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+  }
+  th { background: var(--bg-card); font-weight: 600; }
+  tr:nth-child(even) { background: rgba(255,255,255,.02); }
+
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: rgba(88,166,255,.08);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 12px 0 20px;
+  }
+  .callout.warn { border-left-color: var(--accent-orange); background: rgba(210,153,34,.08); }
+  .callout.err  { border-left-color: var(--accent-red); background: rgba(248,81,73,.08); }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 16px 0 24px;
+  }
+  .feature-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .feature-card h4 { margin-top: 0; color: var(--text); }
+  .feature-card p { font-size: .93em; color: var(--text-muted); }
+
+  .flow-diagram {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 12px 0 20px;
+    font-family: 'SF Mono', monospace;
+    font-size: .88em;
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--text-muted);
+  }
+  .flow-diagram .hl { color: var(--accent); }
+  .flow-diagram .ok { color: var(--accent-green); }
+  .flow-diagram .arrow { color: var(--accent-orange); }
+
+  .stage-chain {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 0;
+    margin: 16px 0;
+    align-items: center;
+  }
+  .stage-box {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 4px;
+    font-size: .85em;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+  }
+  .stage-box.active { border-color: var(--accent); color: var(--accent); }
+  .stage-arrow { color: var(--text-muted); font-size: 1.1em; padding: 0 6px; }
+
+  @media (max-width: 640px) {
+    .container { padding: 20px 12px; }
+    header h1 { font-size: 1.6em; }
+    .feature-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>pi-extension-creator</h1>
+  <p class="subtitle">User Manual — v0.2.0</p>
+  <div class="badges">
+    <span class="badge blue">TypeScript ES2022</span>
+    <span class="badge green">MIT License</span>
+    <span class="badge orange">pi extension</span>
+    <span class="badge purple">41 tests</span>
+  </div>
+</header>
+
+<nav class="toc">
+<h2>Table of Contents</h2>
+<ol>
+  <li><a href="#overview">Overview</a></li>
+  <li><a href="#quickstart">Quick Start</a></li>
+  <li><a href="#lifecycle">Extension Lifecycle</a></li>
+  <li><a href="#tool">Using the extension_creator Tool</a></li>
+  <li><a href="#cli">CLI Reference</a></li>
+  <li><a href="#validation">Validation Rules</a></li>
+  <li><a href="#install">How Installation Works</a></li>
+  <li><a href="#documentation">Generating Documentation</a></li>
+  <li><a href="#examples">Workflow Examples</a></li>
+  <li><a href="#troubleshooting">Troubleshooting</a></li>
+</ol>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="overview">1. Overview</h2>
+
+<p>The <strong>pi-extension-creator</strong> is a factory for pi extensions. It provides a complete lifecycle management system for building, validating, and installing pi extensions through LLM-driven tool calls.</p>
+
+<p>Instead of manually managing extension files and running shell commands, LLMs use the single <code>extension_creator</code> <strong>tool</strong> to plan, scaffold, validate, document, and install pi extensions.</p>
+
+<div class="feature-grid">
+  <div class="feature-card">
+    <h4>🎯 Intelligent Routing</h4>
+    <p>Infers lifecycle stage and starting mode from natural language — no need to specify every parameter.</p>
+  </div>
+  <div class="feature-card">
+    <h4>✅ One-Pass Validation</h4>
+    <p>Batches all diagnostics before returning. See every error at once instead of fixing one at a time.</p>
+  </div>
+  <div class="feature-card">
+    <h4>📦 Deterministic Install</h4>
+    <p>Copies extensions to <code>~/.pi-extensions/&lt;name&gt;</code> and updates pi's settings.json. Always replaces existing copies.</p>
+  </div>
+  <div class="feature-card">
+    <h4>📝 Auto Documentation</h4>
+    <p>Analyzes source code structure and generates README.md and ARCHITECTURE.md automatically.</p>
+  </div>
+  <div class="feature-card">
+    <h4>🔧 CLI Access</h4>
+    <p>Standalone CLI with <code>--help</code>, <code>--version</code>, <code>--json</code>, and <code>--verbose</code> flags.</p>
+  </div>
+  <div class="feature-card">
+    <h4>🧪 41 Tests</h4>
+    <p>Vitest suite covering validator, installer, and router logic. Pre-commit hook enforces quality.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="quickstart">2. Quick Start</h2>
+
+<h3>Install the extension-creator itself</h3>
+<pre><code>git clone &lt;repo-url&gt;
+cd pi-extension-creator
+npm install
+npm run build
+npm run bootstrap</code></pre>
+
+<p>The <code>bootstrap</code> command validates the package, copies it to <code>~/.pi-extensions/pi-extension-creator</code>, and adds it to <code>~/.pi/agent/settings.json</code> so pi can discover it.</p>
+
+<div class="callout">
+  <strong>Note:</strong> After bootstrapping, restart pi to load the extension.
+</div>
+
+<h3>Verify it's working</h3>
+<pre><code># Via CLI
+pi-extension-creator validate . --verbose
+pi-extension-creator --help
+
+# Via tool (from within pi)
+# Call the extension_creator tool with any goal
+extension_creator(goal="validate this extension", path=".")</code></pre>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="lifecycle">3. Extension Lifecycle</h2>
+
+<p>The extension-creator organizes development into seven stages:</p>
+
+<div class="stage-chain">
+  <span class="stage-box">💡 idea</span>
+  <span class="stage-arrow">→</span>
+  <span class="stage-box">📝 draft</span>
+  <span class="stage-arrow">→</span>
+  <span class="stage-box">📁 workspace</span>
+  <span class="stage-arrow">→</span>
+  <span class="stage-box">✅ validated</span>
+  <span class="stage-arrow">→</span>
+  <span class="stage-box">📦 installed</span>
+  <span class="stage-arrow">→</span>
+  <span class="stage-box">🔧 maintenance</span>
+</div>
+
+<table>
+  <tr><th>Stage</th><th>Meaning</th><th>Starting Mode</th></tr>
+  <tr><td><code>idea</code></td><td>Just an idea, no code yet</td><td><code>plan</code></td></tr>
+  <tr><td><code>draft</code></td><td>Starter scaffold created</td><td><code>scaffold</code></td></tr>
+  <tr><td><code>workspace</code></td><td>External repo/folder exists</td><td><code>review</code></td></tr>
+  <tr><td><code>validated</code></td><td>Package passed validation</td><td><code>install</code></td></tr>
+  <tr><td><code>installed</code></td><td>Already in pi</td><td><code>review</code> or <code>update</code></td></tr>
+  <tr><td><code>maintenance</code></td><td>Needs updates or removal</td><td><code>update</code> or <code>remove</code></td></tr>
+</table>
+
+<p>The tool automatically infers the stage from the user's goal using keyword matching:</p>
+<table>
+  <tr><th>Goal Contains</th><th>Inferred Stage</th></tr>
+  <tr><td>"install"</td><td><code>validated</code></td></tr>
+  <tr><td>"uninstall"</td><td><code>installed</code></td></tr>
+  <tr><td>"update", "refresh"</td><td><code>installed</code></td></tr>
+  <tr><td>"remove", "delete"</td><td><code>installed</code></td></tr>
+  <tr><td><em>path provided</em></td><td><code>workspace</code></td></tr>
+  <tr><td><em>none of the above</em></td><td><code>idea</code></td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="tool">4. Using the extension_creator Tool</h2>
+
+<p>The <code>extension_creator</code> tool is the primary interface. It accepts the following parameters:</p>
+
+<table>
+  <tr><th>Parameter</th><th>Description</th><th>Required</th></tr>
+  <tr><td><code>goal</code></td><td>What you want to build or do</td><td>Usually</td></tr>
+  <tr><td><code>mode</code></td><td>Lifecycle action: <code>plan</code>, <code>scaffold</code>, <code>review</code>, <code>validate</code>, <code>install</code>, <code>update</code>, <code>remove</code>, <code>document</code></td><td>Auto-inferred</td></tr>
+  <tr><td><code>stage</code></td><td>Current stage: <code>idea</code>, <code>draft</code>, <code>workspace</code>, <code>validated</code>, <code>installed</code>, <code>maintenance</code></td><td>Auto-inferred</td></tr>
+  <tr><td><code>path</code> / <code>sourcePath</code></td><td>Path to the extension workspace</td><td>Required for validate/install/update/remove</td></tr>
+  <tr><td><code>extensionKind</code></td><td><code>tool</code>, <code>command</code>, <code>prompt</code>, <code>provider</code></td><td>Auto-inferred from goal</td></tr>
+  <tr><td><code>strict</code></td><td>Enforce stricter validation rules</td><td>Optional</td></tr>
+  <tr><td><code>note</code></td><td>Additional context or instructions</td><td>Optional</td></tr>
+</table>
+
+<h3>How mode is inferred</h3>
+<p>If you don't specify a mode, the tool infers it in this priority order:</p>
+<ol>
+  <li><strong>From stage</strong>: <code>idea</code> → <code>plan</code>, <code>draft</code> → <code>scaffold</code>, <code>workspace</code> → <code>review</code>, <code>validated</code> → <code>install</code>, <code>installed</code> → <code>review</code>, <code>maintenance</code> → <code>update</code></li>
+  <li><strong>From goal keywords</strong>: "document" → <code>document</code>, "remove"/"uninstall"/"delete" → <code>remove</code>, "update"/"refresh"/"upgrade" → <code>update</code>, "validate"/"check"/"lint"/"type" → <code>validate</code></li>
+  <li><strong>From path</strong>: if a path is provided, defaults to <code>review</code></li>
+  <li><strong>Fallback</strong>: <code>plan</code></li>
+</ol>
+
+<h3>How extension kind is inferred</h3>
+<table>
+  <tr><th>Goal Contains</th><th>Inferred Kind</th></tr>
+  <tr><td>"prompt"</td><td>prompt/system-prompt extension</td></tr>
+  <tr><td>"provider"</td><td>provider extension</td></tr>
+  <tr><td>"tool"</td><td>tool extension</td></tr>
+  <tr><td>"command"</td><td>command extension</td></tr>
+  <tr><td>"ui"</td><td>ui extension</td></tr>
+  <tr><td>"session" / "state"</td><td>session/state extension</td></tr>
+  <tr><td>"resource"</td><td>resource-discovery extension</td></tr>
+  <tr><td>"sound" / "notify" / "alert"</td><td>notification/sound extension</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="cli">5. CLI Reference</h2>
+
+<p>The standalone CLI is available as <code>pi-extension-creator</code> after building.</p>
+
+<h3>Usage</h3>
+<pre><code>pi-extension-creator validate [path]      Validate an extension package
+pi-extension-creator review [path]         Same as validate
+pi-extension-creator bootstrap             Build, validate, and install self
+pi-extension-creator install-self          Same as bootstrap
+pi-extension-creator --help               Show help
+pi-extension-creator --version            Show version</code></pre>
+
+<h3>Flags</h3>
+<table>
+  <tr><th>Flag</th><th>Description</th></tr>
+  <tr><td><code>--json</code></td><td>Output validation results as JSON (machine-readable)</td></tr>
+  <tr><td><code>--verbose</code></td><td>Print detailed progress messages to stderr</td></tr>
+  <tr><td><code>--help</code> / <code>-h</code></td><td>Show usage information</td></tr>
+  <tr><td><code>--version</code> / <code>-v</code></td><td>Show package version</td></tr>
+</table>
+
+<h3>Exit Codes</h3>
+<table>
+  <tr><th>Code</th><th>Meaning</th></tr>
+  <tr><td>0</td><td>Validation passed or install succeeded</td></tr>
+  <tr><td>1</td><td>Validation failed or install failed</td></tr>
+  <tr><td>2</td><td>Invalid command or usage error</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="validation">6. Validation Rules</h2>
+
+<p>Before installing any extension, the validator checks:</p>
+
+<table>
+  <tr><th>Check</th><th>Code</th><th>Severity</th></tr>
+  <tr><td>package.json exists</td><td><code>manifest.missing</code></td><td class="err">Error</td></tr>
+  <tr><td>package.json is valid JSON</td><td><code>manifest.invalid-json</code></td><td class="err">Error</td></tr>
+  <tr><td>Package name exists</td><td><code>manifest.name.missing</code></td><td class="err">Error</td></tr>
+  <tr><td>Package name is kebab-case</td><td><code>manifest.name.not-kebab-case</code></td><td class="err">Error</td></tr>
+  <tr><td>Entrypoint declared</td><td><code>manifest.entrypoint.missing</code></td><td class="err">Error</td></tr>
+  <tr><td>Exactly one entrypoint</td><td><code>manifest.entrypoint.multiple</code></td><td class="err">Error</td></tr>
+  <tr><td>Entrypoint file exists</td><td><code>entrypoint.missing</code></td><td class="err">Error</td></tr>
+  <tr><td>Named entrypoint preferred</td><td><code>entrypoint.named-file</code></td><td class="warn">Warning</td></tr>
+  <tr><td>Index entrypoint is legacy</td><td><code>entrypoint.index-file</code></td><td class="warn">Warning</td></tr>
+  <tr><td>tsconfig.json exists</td><td><code>tsconfig.missing</code></td><td class="err">Error</td></tr>
+  <tr><td>TypeScript compiles</td><td><code>compiler.*</code></td><td>Error/Warning</td></tr>
+  <tr><td>All imports are declared</td><td><code>dependencies.undeclared</code></td><td class="warn">Warning</td></tr>
+</table>
+
+<h3>Validation Status</h3>
+<table>
+  <tr><th>Status</th><th>Meaning</th><th>Can Install?</th></tr>
+  <tr><td><code>pass</code></td><td>Package type-checks and follows conventions</td><td>✅ Yes</td></tr>
+  <tr><td><code>warn</code></td><td>Non-fatal issues (e.g., index.ts entrypoint)</td><td>✅ Yes (recommend fixing warnings)</td></tr>
+  <tr><td><code>fail</code></td><td>Errors that prevent safe installation</td><td>❌ No</td></tr>
+</table>
+
+<div class="callout warn">
+  <strong>Tip:</strong> All diagnostics are collected in a single pass. If you have 3 errors, you'll see all 3 at once — no need to fix one, re-run, find the next.
+</div>
+
+<h3>Entrypoint Resolution Priority</h3>
+<ol>
+  <li><code>pi.extensions</code> array (first entry)</li>
+  <li><code>pi.entrypoint</code></li>
+  <li><code>main</code> (legacy — emits warning)</li>
+</ol>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="install">7. How Installation Works</h2>
+
+<p>The installer uses <strong>deterministic file copy</strong> — not symlinks, not npm link.</p>
+
+<div class="flow-diagram"><span class="hl">Source workspace</span>          <span class="arrow">→</span>  <span class="ok">~/.pi-extensions/&lt;name&gt;</span>
+   ┌────────────────────┐             ┌──────────────────────┐
+   │  my-extension/     │             │  my-extension/       │
+   │  ├── package.json  │  ──cpSync──→│  ├── package.json    │
+   │  ├── tsconfig.json │             │  ├── tsconfig.json   │
+   │  └── src/          │             │  └── src/            │
+   └────────────────────┘             └──────────────────────┘
+                                              │
+                                              ▼
+                                   ~/.pi/agent/settings.json
+                                   "packages": ["~/.pi-extensions/my-extension"]</div>
+
+<h3>Install flow</h3>
+<ol>
+  <li><strong>Validation check</strong>: If validation status is <code>fail</code>, install is refused</li>
+  <li><strong>Name resolution</strong>: Uses <code>package.json</code> name (or directory basename as fallback)</li>
+  <li><strong>Create target</strong>: <code>~/.pi-extensions/</code> is created if it doesn't exist</li>
+  <li><strong>Replace existing</strong>: If the extension is already installed, it's removed first</li>
+  <li><strong>Copy files</strong>: <code>fs.cpSync(source, installPath, { recursive: true, force: true })</code></li>
+  <li><strong>Update settings</strong>: Removes old source path from <code>~/.pi/agent/settings.json</code>, adds install path</li>
+</ol>
+
+<div class="callout">
+  <strong>Note:</strong> The installer logs settings.json errors via <code>console.warn</code> instead of failing. A corrupt settings.json won't block installation.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="documentation">8. Generating Documentation</h2>
+
+<p>The <code>document</code> mode analyzes your extension source code and generates documentation automatically.</p>
+
+<h3>What it does</h3>
+<ol>
+  <li>Reads <code>package.json</code> for extension name and description</li>
+  <li>Resolves the entrypoint source file</li>
+  <li>Detects the extension kind (tool, command, prompt, provider, complex)</li>
+  <li>Detects whether the extension has commands, tools, prompts, or skills</li>
+  <li>Generates <strong>README.md</strong> with badges, features, install guide, and dev commands</li>
+  <li>Generates <strong>ARCHITECTURE.md</strong> (only for complex extensions with many source files)</li>
+  <li>Writes the files directly to the extension's source directory</li>
+</ol>
+
+<h3>Usage</h3>
+<pre><code>extension_creator(mode="document", path="./my-extension")</code></pre>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="examples">9. Workflow Examples</h2>
+
+<h3>Example 1: Create a new tool extension</h3>
+<pre><code>User: "Create a tool extension that adds git operations"
+
+Step 1 — Plan
+  LLM → extension_creator(goal="git tool extension", mode="plan", stage="idea")
+  Tool → Returns architecture plan, files, steps, cautions
+
+Step 2 — Implement
+  LLM → Creates workspace directory, package.json, tsconfig.json, entrypoint source
+
+Step 3 — Validate
+  LLM → extension_creator(mode="validate", path="./git-tool")
+  Tool → Returns pass/warn/fail with diagnostics
+
+Step 4 — Fix (if needed)
+  LLM → Addresses errors, re-validates
+
+Step 5 — Install
+  LLM → extension_creator(mode="install", path="./git-tool")
+  Tool → Copies to ~/.pi-extensions/git-tool, updates settings.json
+
+Step 6 — Document (optional)
+  LLM → extension_creator(mode="document", path="./git-tool")
+  Tool → Generates README.md + ARCHITECTURE.md</code></pre>
+
+<h3>Example 2: Review and update an existing extension</h3>
+<pre><code>User: "Review my extension in ~/my-extension and update it"
+
+Step 1
+  LLM → extension_creator(path="~/my-extension", mode="review")
+  Tool → Validates and reports status
+
+Step 2
+  LLM → Makes changes based on feedback
+  LLM → extension_creator(mode="validate", path="~/my-extension")
+
+Step 3
+  LLM → extension_creator(mode="update", path="~/my-extension")
+  Tool → Re-validates and updates the installation</code></pre>
+
+<h3>Example 3: Using the CLI</h3>
+<pre><code># Validate a package
+pi-extension-creator validate ./my-extension --verbose
+
+# Get machine-readable results
+pi-extension-creator validate ./my-extension --json | jq
+
+# Bootstrap (self-install from current directory)
+pi-extension-creator bootstrap
+
+# Get help
+pi-extension-creator --help</code></pre>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="troubleshooting">10. Troubleshooting</h2>
+
+<h3>Installation fails</h3>
+<table>
+  <tr><th>Symptom</th><th>Likely Cause</th><th>Fix</th></tr>
+  <tr><td>"Validation failed"</td><td>Package has errors</td><td>Run <code>validate</code> mode, check diagnostics, fix errors</td></tr>
+  <tr><td>"Source path does not exist"</td><td>Wrong path</td><td>Use absolute path or verify the directory exists</td></tr>
+  <tr><td>Settings.json not updated</td><td>Permissions or corrupt JSON</td><td>Check <code>~/.pi/agent/settings.json</code> manually</td></tr>
+</table>
+
+<h3>CLI issues</h3>
+<table>
+  <tr><th>Symptom</th><th>Fix</th></tr>
+  <tr><td>"command not found: pi-extension-creator"</td><td>Run <code>npm run build</code> first, or use <code>npx pi-extension-creator</code></td></tr>
+  <tr><td>"Unknown command"</td><td>Run <code>pi-extension-creator --help</code> for valid commands</td></tr>
+  <tr><td>TypeScript errors on validation</td><td>Check that all imports are correct and <code>tsconfig.json</code> is present</td></tr>
+</table>
+
+<h3>Validation gives unexpected results</h3>
+<ul>
+  <li><strong>Entrypoint not found</strong>: Ensure <code>pi.extensions</code> in <code>package.json</code> points to the correct path</li>
+  <li><strong>Name not kebab-case</strong>: Use lowercase with hyphens: <code>my-extension</code>, not <code>MyExtension</code> or <code>my_extension</code></li>
+  <li><strong>Warning about index.ts</strong>: Prefer named entrypoints like <code>my-tool.ts</code> over <code>index.ts</code></li>
+</ul>
+
+</div>
+</body>
+</html>
