@@ -59,7 +59,7 @@ export function runDeterministicInstall(params: {
 
   // Copy source to install path
   try {
-    copyDirectory(sourcePath, installPath);
+    fs.cpSync(sourcePath, installPath, { recursive: true, force: true });
     
     // Clean up settings.json - remove duplicate source path entries
     cleanupSettingsJson(sourcePath, installPath, extensionName);
@@ -125,21 +125,3 @@ function cleanupSettingsJson(sourcePath: string, installPath: string, extensionN
   }
 }
 
-function copyDirectory(src: string, dest: string): void {
-  if (!fs.existsSync(dest)) {
-    fs.mkdirSync(dest, { recursive: true });
-  }
-
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-
-    if (entry.isDirectory()) {
-      copyDirectory(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-}
