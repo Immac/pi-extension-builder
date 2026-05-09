@@ -34,7 +34,6 @@ temp/
 .LSOverride
 ._*
 
-# Test output
-__tests__/
+# Test output (only ignore compiled test output in dist)
 *.test.js
 *.spec.js
