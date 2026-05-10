@@ -70,7 +70,7 @@ Batches all diagnostics before returning. Reports manifest errors, entrypoint is
 <td width="50%">
 
 ### 📦 **Deterministic Install**
-Copies extensions to `~/.pi-extensions/<name>` using `fs.cpSync()` and updates `~/.pi/agent/settings.json`. Replaces existing installations automatically.
+Copies extensions to `~/.pi-extensions/<name>` (excluding `.pi` directories) and updates `~/.pi/agent/settings.json`. Replaces existing installations automatically.
 
 </td>
 <td width="50%">

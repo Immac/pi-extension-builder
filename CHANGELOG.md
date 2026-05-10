@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1] — 2026-05-10
+
+### Changed
+- **`.pi` directories now excluded during install**: `copyDirExcludingPi()` replaces `fs.cpSync()` to prevent copying the agent's own `.pi` configuration directory into the installed extension at `~/.pi-extensions/<name>`.
+
+---
+
 ## [0.2.0] — 2026-05-09
 
 ### Added

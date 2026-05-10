@@ -57,9 +57,9 @@ export function runDeterministicInstall(params: {
     fs.rmSync(installPath, { recursive: true, force: true });
   }
 
-  // Copy source to install path
+  // Copy source to install path, excluding any .pi directories
   try {
-    fs.cpSync(sourcePath, installPath, { recursive: true, force: true });
+    copyDirExcludingPi(sourcePath, installPath);
     
     // Clean up settings.json - remove duplicate source path entries
     cleanupSettingsJson(sourcePath, installPath, extensionName);
@@ -79,6 +79,31 @@ export function runDeterministicInstall(params: {
       success: false,
       message: `Installation failed: ${error instanceof Error ? error.message : String(error)}`,
     };
+  }
+}
+
+/**
+ * Recursively copy a directory, excluding any .pi directories.
+ * This prevents copying the agent's own configuration into the installed extension.
+ */
+function copyDirExcludingPi(src: string, dest: string): void {
+  fs.mkdirSync(dest, { recursive: true });
+
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.name === '.pi') {
+      // Skip .pi directories entirely
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      copyDirExcludingPi(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
   }
 }
 
