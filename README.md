@@ -61,6 +61,16 @@ pi-extension-creator disable my-ext --scope project
 pi-extension-creator enable my-ext --scope user
 ```
 
+### Install from cwd (inside pi)
+
+Inside a pi session, navigate to the extension directory and run:
+
+```
+/install-this-extension
+```
+
+Validates the extension in the current directory and installs it to the user vault.
+
 ### List extensions
 
 ```bash
@@ -81,6 +91,12 @@ pi-extension-creator uninstall my-ext --scope project
 pi-extension-creator validate ./path/to/my-ext
 # Then use the extension_creator tool with mode=document
 ```
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `/install-this-extension` | Validate and install the extension in the current directory into the user vault |
 
 ## Usage Examples
 

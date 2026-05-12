@@ -5,6 +5,7 @@
 ### Added
 - **Deterministic bootstrap script** (`scripts/bootstrap.sh`): Single `npm run bootstrap` command that clean → builds → self-installs into vault → removes stale dirs → verifies.
 - **Project skill** (`.pi/skills/deterministic-bootstrap/`): Tells the LLM to run `npm run bootstrap` for self-install.
+- **`/install-this-extension` command**: Validates and installs the extension in pi's cwd into the user vault.
 - **`npm run bootstrap`** and **`npm run self-install`** both run `scripts/bootstrap.sh` (deterministic script). Previously `self-install` ran inline steps without cleanup/verify.
 
 ### Changed

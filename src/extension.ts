@@ -294,6 +294,36 @@ function startWatcherIfEnabled(pi: ExtensionAPI, ctx: any): void {
 export default function extensionCreator(pi: ExtensionAPI) {
   pi.registerTool(extensionCreatorTool);
 
+  // ── Command: /install-this-extension ─────────────────────────────
+  // Installs the extension from cwd into the vault.
+  pi.registerCommand('install-this-extension', {
+    description: 'Validate and install the extension in the current directory into the user extension vault',
+    handler: async (args: string, ctx: any) => {
+      const cwd = ctx.cwd as string;
+      ctx.ui.notify(`Validating extension at ${cwd}...`, 'info');
+
+      const validation = await validateExtensionProject(cwd);
+      if (validation.status === 'fail') {
+        const errors = validation.errors.map(e => `[${e.code}] ${e.message}`).join('\n');
+        ctx.ui.notify(`Validation failed:\n${errors}`, 'error');
+        return;
+      }
+
+      ctx.ui.notify('Validation passed. Installing...', 'info');
+      const result = installExtension({
+        sourcePath: cwd,
+        scope: 'user',
+        projectDir: cwd,
+      });
+
+      if (result.success) {
+        ctx.ui.notify(`Installed ${result.entry?.name} to vault. /reload to apply.`, 'success');
+      } else {
+        ctx.ui.notify(`Install failed: ${result.message}`, 'error');
+      }
+    },
+  });
+
   // On session start: check if registry was modified since we last saw it
   pi.on('session_start', async (_event, ctx) => {
     // Clear timestamps on /reload so stale warnings disappear
