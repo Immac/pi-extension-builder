@@ -22,6 +22,7 @@ interface ToolParams {
   sourcePath?: string;
   installTarget?: string;
   scope?: string;
+  name?: string;
   strict?: boolean;
   note?: string;
 }
@@ -95,6 +96,7 @@ const extensionCreatorTool = defineTool({
     sourcePath: Type.Optional(Type.String({ description: 'Source path (alias for path).' })),
     installTarget: Type.Optional(Type.String({ description: 'Optional install target or discovery preference.' })),
     scope: Type.Optional(Type.String({ description: 'Scope: "user" (default) or "project".' })),
+    name: Type.Optional(Type.String({ description: 'Extension name for enable/disable/remove/list operations.' })),
     strict: Type.Optional(Type.Boolean({ description: 'Prefer stricter cleanup and validation guidance.' })),
     note: Type.Optional(Type.String({ description: 'Additional instruction or context.' })),
   }),
@@ -132,7 +134,7 @@ const extensionCreatorTool = defineTool({
 
     // ── Enable / Disable / Remove (uninstall) via manager ─────────
     let mgrResult: any = undefined;
-    const extName = sourcePath ? path.basename(sourcePath) : goal?.trim();
+    const extName = params.name?.trim() || (sourcePath ? path.basename(sourcePath) : goal?.trim());
 
     if (mode === 'enable' && extName) {
       mgrResult = enableExtension({ name: extName, scope, projectDir });
