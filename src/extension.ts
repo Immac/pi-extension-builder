@@ -7,6 +7,7 @@ import { validateExtensionProject } from './validator';
 import { runDeterministicInstall, installExtension, uninstallExtension, enableExtension, disableExtension } from './installer';
 import type { ValidationResult, Scope } from './types';
 import { ExtensionManager } from './manager';
+import { repairSettings } from './pi-adapter';
 
 import { normalizeMode, normalizeStage, inferKindFromGoal, type Mode, type Stage } from './router';
 import { buildPlan } from './planner';
@@ -313,6 +314,15 @@ export default function extensionCreator(pi: ExtensionAPI) {
 
   // On session start: check if registry was modified since we last saw it
   pi.on('session_start', async (_event, ctx) => {
+    // Repair settings.json if packages array was dropped by external tools
+    try {
+      const mgr = new ExtensionManager({ projectDir: ctx.cwd });
+      const allEntries = mgr.list();
+      repairSettings(allEntries, ctx.cwd);
+    } catch {
+      // fail silently — non-critical
+    }
+
     // Clear timestamps on /reload so stale warnings disappear
     checkReloadNeeded(ctx);
     markTimestamps(ctx);
