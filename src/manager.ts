@@ -37,6 +37,14 @@ export class ExtensionManager {
       }
     }
     if (!name) name = path.basename(source);
+    try {
+      sanitizeExtensionName(name);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : `Invalid extension name: ${name}`,
+      };
+    }
     const vaultRoot = this.vaultRoot(scope);
     const destDir = path.join(vaultRoot, 'extensions', name);
 
@@ -95,6 +103,15 @@ export class ExtensionManager {
   }
 
   uninstall(name: string, scope: Scope, opts?: { skipSync?: boolean }): ManagerResult {
+    try {
+      sanitizeExtensionName(name);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : `Invalid extension name: ${name}`,
+      };
+    }
+
     const vaultRoot = this.vaultRoot(scope);
     const destDir = path.join(vaultRoot, 'extensions', name);
 
@@ -126,6 +143,15 @@ export class ExtensionManager {
   }
 
   enable(name: string, scope: Scope, opts?: { skipSync?: boolean }): ManagerResult {
+    try {
+      sanitizeExtensionName(name);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : `Invalid extension name: ${name}`,
+      };
+    }
+
     const registry = this.readRegistry(scope);
     const entry = registry.extensions.find((e) => e.name === name && e.scope === scope);
     if (!entry) {
@@ -148,6 +174,15 @@ export class ExtensionManager {
   }
 
   disable(name: string, scope: Scope, opts?: { skipSync?: boolean }): ManagerResult {
+    try {
+      sanitizeExtensionName(name);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : `Invalid extension name: ${name}`,
+      };
+    }
+
     const registry = this.readRegistry(scope);
     const entry = registry.extensions.find((e) => e.name === name && e.scope === scope);
     if (!entry) {
@@ -246,19 +281,90 @@ export class ExtensionManager {
   }
 }
 
+// ── Name sanitization ────────────────────────────────────────────────
+
+const EXTENSION_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
+/**
+ * Validate that an extension name does not contain path-traversal sequences
+ * or operating-system path separators. Throws on invalid names.
+ */
+function sanitizeExtensionName(name: string): void {
+  if (!name || name.trim().length === 0) {
+    throw new Error('Extension name must not be empty');
+  }
+  if (name.includes('/') || name.includes('\\')) {
+    throw new Error(`Extension name "${name}" must not contain path separators`);
+  }
+  if (name === '.' || name === '..' || name.startsWith('..')) {
+    throw new Error(`Extension name "${name}" must not contain relative path components`);
+  }
+  if (path.isAbsolute(name)) {
+    throw new Error(`Extension name "${name}" must not be an absolute path`);
+  }
+}
+
 // ── Utility: directory copy (excluding .pi) ──────────────────────────
 
+/** Error codes for permission/access failures that should be non-fatal. */
+const ACCESS_ERROR_CODES = new Set(['EACCES', 'EPERM', 'EBUSY']);
+
 function copyDirExcludingPi(src: string, dest: string): void {
+  // Read source before creating dest — avoid leaving empty directories
+  // when the source is unreadable
+  let entries;
+  try {
+    entries = fs.readdirSync(src, { withFileTypes: true });
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code && ACCESS_ERROR_CODES.has(err.code)) {
+      console.warn(`[extension-manager] Warning: cannot read directory "${src}": ${error}`);
+      return;
+    }
+    throw error;
+  }
+
   fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
+
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.name === '.pi') continue;
-    if (entry.isDirectory()) {
-      copyDirExcludingPi(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
+
+    try {
+      if (entry.isSymbolicLink()) {
+        // Resolve symlink target and verify it's within the source tree
+        const realTarget = fs.realpathSync(srcPath);
+        const resolvedSrc = path.resolve(src);
+        if (realTarget === resolvedSrc) {
+          throw new Error(
+            `Symlink "${entry.name}" is self-referential; cannot copy`,
+          );
+        }
+        if (!realTarget.startsWith(resolvedSrc + path.sep)) {
+          throw new Error(
+            `Symlink "${entry.name}" points outside the source tree: ${realTarget}`,
+          );
+        }
+        // Symlink within source tree — resolve to real path and follow
+        const stat = fs.statSync(srcPath);
+        if (stat.isDirectory()) {
+          copyDirExcludingPi(realTarget, destPath);
+        } else {
+          fs.copyFileSync(realTarget, destPath);
+        }
+      } else if (entry.isDirectory()) {
+        copyDirExcludingPi(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code && ACCESS_ERROR_CODES.has(err.code)) {
+        console.warn(`[extension-manager] Warning: skipping unreadable entry "${entry.name}": ${error}`);
+      } else {
+        throw error;
+      }
     }
   }
 }

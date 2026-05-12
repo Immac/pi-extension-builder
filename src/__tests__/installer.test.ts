@@ -154,6 +154,282 @@ describe('ExtensionManager.install', () => {
     expect(result.success).toBe(false);
     expect(result.message).toContain('does not exist');
   });
+
+  it('fails when source contains a symlink to a file outside the source tree', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-outside' });
+    try {
+      // Create external target file
+      const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'));
+      fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'sensitive data');
+
+      // Create symlink inside extension pointing outside
+      fs.symlinkSync(
+        path.join(outsideDir, 'secret.txt'),
+        path.join(dir, 'leak.txt'),
+      );
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('outside the source tree');
+
+      // Cleanup external dir
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('fails when source contains a self-referential symlink', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-selfref' });
+    try {
+      // Create self-referential symlink
+      fs.symlinkSync(dir, path.join(dir, 'self'));
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('self-referential');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('succeeds when source contains a symlink to a file inside the source tree', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-internal-file' });
+    try {
+      // Create an internal target file
+      fs.writeFileSync(path.join(dir, 'internal.txt'), 'hello');
+
+      // Create symlink inside extension pointing to an internal file
+      fs.symlinkSync(
+        path.join(dir, 'internal.txt'),
+        path.join(dir, 'link-to-internal.txt'),
+      );
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(true);
+
+      // The symlink target should have been copied by following it
+      const vaultFile = path.join(result.entry!.vaultPath, 'link-to-internal.txt');
+      expect(fs.existsSync(vaultFile)).toBe(true);
+      expect(fs.readFileSync(vaultFile, 'utf8')).toBe('hello');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('succeeds when source contains a symlink to a directory inside the source tree', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-internal-dir' });
+    try {
+      // Create internal subdirectory with a file
+      const subDir = path.join(dir, 'sub');
+      fs.mkdirSync(subDir, { recursive: true });
+      fs.writeFileSync(path.join(subDir, 'nested.txt'), 'nested data');
+
+      // Create symlink to internal directory
+      fs.symlinkSync(subDir, path.join(dir, 'link-to-sub'));
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(true);
+
+      // The directory contents should have been copied by following the symlink
+      const vaultSub = path.join(result.entry!.vaultPath, 'link-to-sub');
+      expect(fs.existsSync(path.join(vaultSub, 'nested.txt'))).toBe(true);
+      expect(fs.readFileSync(path.join(vaultSub, 'nested.txt'), 'utf8')).toBe('nested data');
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ── Extension name sanitization ───────────────────────────────────────
+
+describe('ExtensionManager name sanitization', () => {
+  describe('install', () => {
+    it('rejects name with path separators', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user', { name: '../../evil' });
+        expect(result.success).toBe(false);
+        expect(result.message).toMatch(/path separator|invalid/i);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('rejects name that is a relative path component', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user', { name: '..' });
+        expect(result.success).toBe(false);
+        expect(result.message).toMatch(/relative path|invalid/i);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('rejects name that is just a dot', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user', { name: '.' });
+        expect(result.success).toBe(false);
+        expect(result.message).toMatch(/relative path|invalid/i);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('rejects absolute path as name', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user', { name: '/etc/passwd' });
+        expect(result.success).toBe(false);
+        expect(result.message).toMatch(/path separator|invalid/i);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('accepts valid kebab-case name', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user');
+        expect(result.success).toBe(true);
+      } finally {
+        cleanup();
+      }
+    });
+  });
+
+  describe('uninstall', () => {
+    it('rejects name with path separators', () => {
+      const mgr = userManager();
+      const result = mgr.uninstall('../../etc', 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/path separator|invalid/i);
+    });
+
+    it('rejects empty name', () => {
+      const mgr = userManager();
+      const result = mgr.uninstall('', 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/empty|invalid/i);
+    });
+  });
+
+  describe('enable / disable', () => {
+    it('rejects name with backslash in enable', () => {
+      const mgr = userManager();
+      const result = mgr.enable('..\\etc', 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/path separator|invalid/i);
+    });
+
+    it('rejects name with forward slash in disable', () => {
+      const mgr = userManager();
+      const result = mgr.disable('../../../etc', 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/path separator|invalid/i);
+    });
+  });
+});
+
+// ── copyDirExcludingPi: Symlink traversal guard ────────────────────────────
+
+describe('copyDirExcludingPi symlink guard', () => {
+  it('rejects symlink to directory outside the source tree', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-outside-dir' });
+    try {
+      // Create external directory with a file
+      const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-dir-'));
+      fs.writeFileSync(path.join(outsideDir, 'payload.txt'), 'evil');
+
+      // Symlink inside extension pointing to external directory
+      fs.symlinkSync(outsideDir, path.join(dir, 'external-dir'));
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('outside the source tree');
+
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ── copyDirExcludingPi: Permission resilience ───────────────────────────
+
+describe('copyDirExcludingPi permission resilience', () => {
+  it('skips unreadable files instead of aborting install', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-perm-file' });
+    try {
+      // Create an unreadable file
+      const unreadable = path.join(dir, 'secret.txt');
+      fs.writeFileSync(unreadable, 'hidden');
+      fs.chmodSync(unreadable, 0o000);
+
+      const result = mgr.install(dir, 'user');
+
+      // Install should still succeed — the unreadable file is skipped
+      expect(result.success).toBe(true);
+
+      // Confirm the skipped file is NOT in the vault
+      const vaultFile = path.join(result.entry!.vaultPath, 'secret.txt');
+      expect(fs.existsSync(vaultFile)).toBe(false);
+
+      // Confirm other files ARE in the vault
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'package.json'))).toBe(true);
+
+      // Restore permissions so cleanup succeeds
+      fs.chmodSync(unreadable, 0o644);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('skips unreadable subdirectories instead of aborting install', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-perm-dir' });
+    // Custom cleanup that restores permissions before deletion
+    const safeCleanup = () => {
+      try {
+        fs.chmodSync(path.join(dir, 'locked'), 0o755);
+      } catch {
+        // may not exist or already readable
+      }
+      cleanup();
+    };
+    try {
+      // Create an unreadable subdirectory
+      const locked = path.join(dir, 'locked');
+      fs.mkdirSync(locked, { recursive: true });
+      fs.writeFileSync(path.join(locked, 'payload.txt'), 'secret');
+      fs.chmodSync(locked, 0o000);
+
+      const result = mgr.install(dir, 'user');
+
+      expect(result.success).toBe(true);
+
+      // The locked directory should not be in the vault
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'locked'))).toBe(false);
+
+      // Other files are present
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'package.json'))).toBe(true);
+    } finally {
+      safeCleanup();
+    }
+  });
 });
 
 // ── ExtensionManager.enable / disable ────────────────────────────────
