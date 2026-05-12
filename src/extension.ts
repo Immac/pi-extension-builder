@@ -27,49 +27,6 @@ interface ToolParams {
   note?: string;
 }
 
-// ── Reload notification state ─────────────────────────────────────────
-
-const KNOWN_TIMESTAMPS: Record<string, number> = {
-  user: 0,
-  project: 0,
-};
-
-function parseScope(raw?: string): Scope {
-  if (raw === 'project' || raw === 'user') return raw;
-  return 'user';
-}
-
-function buildReloadStatusId(name: string): string {
-  return `ext-creator-${name}`;
-}
-
-function checkReloadNeeded(ctx: any): void {
-  try {
-    const manager = new ExtensionManager({ projectDir: ctx.cwd });
-    for (const scope of ['user', 'project'] as Scope[]) {
-      if (manager.checkModified(scope, KNOWN_TIMESTAMPS[scope])) {
-        const statusId = buildReloadStatusId(scope);
-        ctx.ui?.setStatus?.(statusId, `⚠️ Extensions changed (${scope}) — /reload to apply`);
-      }
-    }
-  } catch {
-    // fail silently — non-critical
-  }
-}
-
-function markTimestamps(ctx: any): void {
-  try {
-    const manager = new ExtensionManager({ projectDir: ctx.cwd });
-    for (const scope of ['user', 'project'] as Scope[]) {
-      KNOWN_TIMESTAMPS[scope] = manager.lastModified(scope);
-      const statusId = buildReloadStatusId(scope);
-      ctx.ui?.setStatus?.(statusId, undefined); // clear the status
-    }
-  } catch {
-    // fail silently
-  }
-}
-
 // ── Tool definition ───────────────────────────────────────────────────
 
 const validLifecycleModes = ['plan', 'scaffold', 'review', 'document', 'validate',
@@ -108,7 +65,7 @@ const extensionCreatorTool = defineTool({
     const extensionKind = params.extensionKind?.trim() || inferKindFromGoal(goal) || 'tool extension';
     const sourcePath = params.sourcePath?.trim() || params.path?.trim();
     const installTarget = params.installTarget?.trim();
-    const scope = parseScope(params.scope || installTarget);
+    const scope: Scope = (params.scope || installTarget) === 'project' ? 'project' : 'user';
     const note = params.note?.trim();
     const projectDir = ctx.cwd as string;
 
@@ -228,70 +185,100 @@ const extensionCreatorTool = defineTool({
   },
 });
 
-// ── Optional file watcher (disabled by default) ─────────────────────
-// Enable with: EXT_MANAGER_WATCH=1 or register the flag
-
-let watchCleanup: (() => void) | null = null;
-
-function startWatcherIfEnabled(pi: ExtensionAPI, ctx: any): void {
-  if (watchCleanup) return; // already watching
-
-  const enabled = process.env.EXT_MANAGER_WATCH === '1';
-  if (!enabled) return;
-
-  try {
-    const manager = new ExtensionManager({ projectDir: ctx.cwd });
-    const watchPaths: string[] = [];
-
-    for (const scope of ['user', 'project'] as Scope[]) {
-      try {
-        const rp = path.join(
-          scope === 'user'
-            ? path.join(os.homedir(), '.extension-manager')
-            : path.join(ctx.cwd, '.extension-manager'),
-          'registry.json',
-        );
-        if (fs.existsSync(rp) || fs.existsSync(path.dirname(rp))) {
-          watchPaths.push(path.dirname(rp));
-        }
-      } catch {
-        // skip unobtainable paths
-      }
-    }
-
-    if (watchPaths.length === 0) return;
-
-    const watchers: fs.FSWatcher[] = [];
-    for (const dir of watchPaths) {
-      try {
-        const watcher = fs.watch(dir, (eventType, filename) => {
-          if (filename === 'registry.json' && eventType === 'change') {
-            checkReloadNeeded(ctx);
-          }
-        });
-        watchers.push(watcher);
-      } catch {
-        // skip unwatchable dirs
-      }
-    }
-
-    watchCleanup = () => {
-      for (const w of watchers) w.close();
-      watchCleanup = null;
-    };
-
-    // Clean up on shutdown
-    pi.on('session_shutdown', () => {
-      watchCleanup?.();
-    });
-  } catch {
-    // fail silently
-  }
-}
-
 // ── Extension factory ────────────────────────────────────────────────
 
 export default function extensionCreator(pi: ExtensionAPI) {
+  // ── Scoped state ────────────────────────────────────────────────
+  const knownTimestamps: Record<string, number> = { user: 0, project: 0 };
+  let watchCleanup: (() => void) | null = null;
+
+  function buildReloadStatusId(name: string): string {
+    return `ext-creator-${name}`;
+  }
+
+  function checkReloadNeeded(ctx: any): void {
+    try {
+      const manager = new ExtensionManager({ projectDir: ctx.cwd });
+      for (const scope of ['user', 'project'] as Scope[]) {
+        if (manager.checkModified(scope, knownTimestamps[scope])) {
+          const statusId = buildReloadStatusId(scope);
+          ctx.ui?.setStatus?.(statusId, `⚠️ Extensions changed (${scope}) — /reload to apply`);
+        }
+      }
+    } catch {
+      // fail silently — non-critical
+    }
+  }
+
+  function markTimestamps(ctx: any): void {
+    try {
+      const manager = new ExtensionManager({ projectDir: ctx.cwd });
+      for (const scope of ['user', 'project'] as Scope[]) {
+        knownTimestamps[scope] = manager.lastModified(scope);
+        const statusId = buildReloadStatusId(scope);
+        ctx.ui?.setStatus?.(statusId, undefined); // clear the status
+      }
+    } catch {
+      // fail silently
+    }
+  }
+
+  function startWatcherIfEnabled(ctx: any): void {
+    if (watchCleanup) return; // already watching
+
+    const enabled = process.env.EXT_MANAGER_WATCH === '1';
+    if (!enabled) return;
+
+    try {
+      const manager = new ExtensionManager({ projectDir: ctx.cwd });
+      const watchPaths: string[] = [];
+
+      for (const scope of ['user', 'project'] as Scope[]) {
+        try {
+          const rp = path.join(
+            scope === 'user'
+              ? path.join(os.homedir(), '.extension-manager')
+              : path.join(ctx.cwd, '.extension-manager'),
+            'registry.json',
+          );
+          if (fs.existsSync(rp) || fs.existsSync(path.dirname(rp))) {
+            watchPaths.push(path.dirname(rp));
+          }
+        } catch {
+          // skip unobtainable paths
+        }
+      }
+
+      if (watchPaths.length === 0) return;
+
+      const watchers: fs.FSWatcher[] = [];
+      for (const dir of watchPaths) {
+        try {
+          const watcher = fs.watch(dir, (eventType, filename) => {
+            if (filename === 'registry.json' && eventType === 'change') {
+              checkReloadNeeded(ctx);
+            }
+          });
+          watchers.push(watcher);
+        } catch {
+          // skip unwatchable dirs
+        }
+      }
+
+      watchCleanup = () => {
+        for (const w of watchers) w.close();
+        watchCleanup = null;
+      };
+
+      // Clean up on shutdown
+      pi.on('session_shutdown', () => {
+        watchCleanup?.();
+      });
+    } catch {
+      // fail silently
+    }
+  }
+
   pi.registerTool(extensionCreatorTool);
 
   // ── Command: /install-this-extension ─────────────────────────────
@@ -330,7 +317,7 @@ export default function extensionCreator(pi: ExtensionAPI) {
     checkReloadNeeded(ctx);
     markTimestamps(ctx);
     // Optionally start file watcher (disabled by default)
-    startWatcherIfEnabled(pi, ctx);
+    startWatcherIfEnabled(ctx);
   });
 
   // On every turn: catch cross-session changes made while this session is idle
