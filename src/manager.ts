@@ -306,39 +306,65 @@ function sanitizeExtensionName(name: string): void {
 
 // ── Utility: directory copy (excluding .pi) ──────────────────────────
 
+/** Error codes for permission/access failures that should be non-fatal. */
+const ACCESS_ERROR_CODES = new Set(['EACCES', 'EPERM', 'EBUSY']);
+
 function copyDirExcludingPi(src: string, dest: string): void {
+  // Read source before creating dest — avoid leaving empty directories
+  // when the source is unreadable
+  let entries;
+  try {
+    entries = fs.readdirSync(src, { withFileTypes: true });
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code && ACCESS_ERROR_CODES.has(err.code)) {
+      console.warn(`[extension-manager] Warning: cannot read directory "${src}": ${error}`);
+      return;
+    }
+    throw error;
+  }
+
   fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
+
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.name === '.pi') continue;
 
-    if (entry.isSymbolicLink()) {
-      // Resolve symlink target and verify it's within the source tree
-      const realTarget = fs.realpathSync(srcPath);
-      const resolvedSrc = path.resolve(src);
-      if (realTarget === resolvedSrc) {
-        throw new Error(
-          `Symlink "${entry.name}" is self-referential; cannot copy`,
-        );
-      }
-      if (!realTarget.startsWith(resolvedSrc + path.sep)) {
-        throw new Error(
-          `Symlink "${entry.name}" points outside the source tree: ${realTarget}`,
-        );
-      }
-      // Symlink within source tree — resolve to real path and follow
-      const stat = fs.statSync(srcPath);
-      if (stat.isDirectory()) {
-        copyDirExcludingPi(realTarget, destPath);
+    try {
+      if (entry.isSymbolicLink()) {
+        // Resolve symlink target and verify it's within the source tree
+        const realTarget = fs.realpathSync(srcPath);
+        const resolvedSrc = path.resolve(src);
+        if (realTarget === resolvedSrc) {
+          throw new Error(
+            `Symlink "${entry.name}" is self-referential; cannot copy`,
+          );
+        }
+        if (!realTarget.startsWith(resolvedSrc + path.sep)) {
+          throw new Error(
+            `Symlink "${entry.name}" points outside the source tree: ${realTarget}`,
+          );
+        }
+        // Symlink within source tree — resolve to real path and follow
+        const stat = fs.statSync(srcPath);
+        if (stat.isDirectory()) {
+          copyDirExcludingPi(realTarget, destPath);
+        } else {
+          fs.copyFileSync(realTarget, destPath);
+        }
+      } else if (entry.isDirectory()) {
+        copyDirExcludingPi(srcPath, destPath);
       } else {
-        fs.copyFileSync(realTarget, destPath);
+        fs.copyFileSync(srcPath, destPath);
       }
-    } else if (entry.isDirectory()) {
-      copyDirExcludingPi(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code && ACCESS_ERROR_CODES.has(err.code)) {
+        console.warn(`[extension-manager] Warning: skipping unreadable entry "${entry.name}": ${error}`);
+      } else {
+        throw error;
+      }
     }
   }
 }

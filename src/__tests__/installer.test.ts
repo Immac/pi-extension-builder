@@ -367,6 +367,71 @@ describe('copyDirExcludingPi symlink guard', () => {
   });
 });
 
+// ── copyDirExcludingPi: Permission resilience ───────────────────────────
+
+describe('copyDirExcludingPi permission resilience', () => {
+  it('skips unreadable files instead of aborting install', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-perm-file' });
+    try {
+      // Create an unreadable file
+      const unreadable = path.join(dir, 'secret.txt');
+      fs.writeFileSync(unreadable, 'hidden');
+      fs.chmodSync(unreadable, 0o000);
+
+      const result = mgr.install(dir, 'user');
+
+      // Install should still succeed — the unreadable file is skipped
+      expect(result.success).toBe(true);
+
+      // Confirm the skipped file is NOT in the vault
+      const vaultFile = path.join(result.entry!.vaultPath, 'secret.txt');
+      expect(fs.existsSync(vaultFile)).toBe(false);
+
+      // Confirm other files ARE in the vault
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'package.json'))).toBe(true);
+
+      // Restore permissions so cleanup succeeds
+      fs.chmodSync(unreadable, 0o644);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('skips unreadable subdirectories instead of aborting install', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-perm-dir' });
+    // Custom cleanup that restores permissions before deletion
+    const safeCleanup = () => {
+      try {
+        fs.chmodSync(path.join(dir, 'locked'), 0o755);
+      } catch {
+        // may not exist or already readable
+      }
+      cleanup();
+    };
+    try {
+      // Create an unreadable subdirectory
+      const locked = path.join(dir, 'locked');
+      fs.mkdirSync(locked, { recursive: true });
+      fs.writeFileSync(path.join(locked, 'payload.txt'), 'secret');
+      fs.chmodSync(locked, 0o000);
+
+      const result = mgr.install(dir, 'user');
+
+      expect(result.success).toBe(true);
+
+      // The locked directory should not be in the vault
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'locked'))).toBe(false);
+
+      // Other files are present
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'package.json'))).toBe(true);
+    } finally {
+      safeCleanup();
+    }
+  });
+});
+
 // ── ExtensionManager.enable / disable ────────────────────────────────
 
 describe('ExtensionManager.enable / disable', () => {
