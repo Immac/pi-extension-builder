@@ -4,6 +4,7 @@ import os from 'node:os';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { runDeterministicInstall } from '../installer';
 import { ExtensionManager } from '../manager';
+import { repairSettings } from '../pi-adapter';
 import { createTestPackage } from './helpers';
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -562,5 +563,133 @@ describe('ExtensionManager.checkModified', () => {
     } finally {
       cleanup();
     }
+  });
+});
+
+// ── repairSettings ───────────────────────────────────────────────────
+
+describe('repairSettings', () => {
+  let tempHome: string;
+  let tempPiDir: string;
+  let settingsPath: string;
+
+  beforeEach(() => {
+    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'repair-test-'));
+    tempPiDir = path.join(tempHome, '.pi', 'agent');
+    settingsPath = path.join(tempPiDir, 'settings.json');
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  });
+
+  it('writes packages when settings.json is missing packages array and entries exist', () => {
+    // Create settings.json with only skills (simulates skill-manager corruption)
+    fs.mkdirSync(tempPiDir, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ skills: ['/some/skill'] }));
+
+    const entries = [
+      {
+        name: 'ext-a',
+        source: '/src/ext-a',
+        vaultPath: '/home/user/.extension-manager/extensions/ext-a',
+        scope: 'user' as const,
+        enabled: true,
+        installedAt: 1000,
+        lastModified: 1000,
+      },
+    ];
+
+    repairSettings(entries, /* projectDir */ undefined, /* homeDir */ tempHome);
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(settings.skills).toEqual(['/some/skill']);
+    expect(settings.packages).toBeDefined();
+    expect(settings.packages).toHaveLength(1);
+    expect(settings.packages[0]).toContain('ext-a');
+  });
+
+  it('does not overwrite existing packages array', () => {
+    // Create settings.json with existing packages
+    fs.mkdirSync(tempPiDir, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      skills: ['/some/skill'],
+      packages: ['/existing/package'],
+    }));
+
+    const entries = [
+      {
+        name: 'ext-a',
+        source: '/src/ext-a',
+        vaultPath: '/home/user/.extension-manager/extensions/ext-a',
+        scope: 'user' as const,
+        enabled: true,
+        installedAt: 1000,
+        lastModified: 1000,
+      },
+    ];
+
+    repairSettings(entries, /* projectDir */ undefined, /* homeDir */ tempHome);
+
+    // Should NOT have changed
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(settings.packages).toEqual(['/existing/package']);
+  });
+
+  it('does nothing when no enabled entries', () => {
+    // Create settings.json with no packages
+    fs.mkdirSync(tempPiDir, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ skills: [] }));
+
+    repairSettings([], /* projectDir */ undefined, /* homeDir */ tempHome);
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(settings.packages).toBeUndefined();
+    expect(settings.skills).toEqual([]);
+  });
+
+  it('does nothing when entries exist but are disabled', () => {
+    fs.mkdirSync(tempPiDir, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({}));
+
+    const entries = [
+      {
+        name: 'ext-a',
+        source: '/src/ext-a',
+        vaultPath: '/home/user/.extension-manager/extensions/ext-a',
+        scope: 'user' as const,
+        enabled: false,
+        installedAt: 1000,
+        lastModified: 1000,
+      },
+    ];
+
+    repairSettings(entries, /* projectDir */ undefined, /* homeDir */ tempHome);
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(settings.packages).toBeUndefined();
+  });
+
+  it('handles settings.json that does not exist yet', () => {
+    // Don't create settings.json at all
+    const entries = [
+      {
+        name: 'ext-a',
+        source: '/src/ext-a',
+        vaultPath: '/home/user/.extension-manager/extensions/ext-a',
+        scope: 'user' as const,
+        enabled: true,
+        installedAt: 1000,
+        lastModified: 1000,
+      },
+    ];
+
+    // Should not throw
+    repairSettings(entries, /* projectDir */ undefined, /* homeDir */ tempHome);
+
+    // File should have been created with packages
+    expect(fs.existsSync(settingsPath)).toBe(true);
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(settings.packages).toHaveLength(1);
   });
 });

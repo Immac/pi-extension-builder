@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import type { RegistryEntry, HarnessAdapter } from './types';
+import type { RegistryEntry, HarnessAdapter, Scope } from './types';
 
 /**
  * Pi-specific harness adapter.
@@ -88,4 +88,55 @@ function ensurePackagesArray(settings: Record<string, unknown>): string[] {
     return settings.packages.filter((p): p is string => typeof p === 'string');
   }
   return [];
+}
+
+/**
+ * Repair settings.json if the packages array is missing but the registry
+ * has enabled extensions. This recovers from external corruption where
+ * another tool (e.g. skill-manager) wrote to settings.json without
+ * preserving the packages field.
+ *
+ * Preserves all existing fields in settings.json.
+ * Only writes if there's a mismatch (enabled extensions exist but packages
+ * are missing or empty).
+ *
+ * @param homeDir - Optional home directory override (for testing).
+ *   Defaults to os.homedir().
+ */
+export function repairSettings(
+  enabledEntries: RegistryEntry[],
+  projectDir?: string,
+  homeDir?: string,
+): void {
+  const resolvedHome = homeDir ?? os.homedir();
+
+  // Group by scope
+  const byScope = new Map<Scope, RegistryEntry[]>();
+  for (const entry of enabledEntries) {
+    if (!entry.enabled) continue;
+    const list = byScope.get(entry.scope);
+    if (list) {
+      list.push(entry);
+    } else {
+      byScope.set(entry.scope, [entry]);
+    }
+  }
+
+  for (const [scope, entries] of byScope) {
+    const filePath = scope === 'user'
+      ? path.join(resolvedHome, '.pi', 'agent', 'settings.json')
+      : projectDir
+        ? path.join(projectDir, '.pi', 'settings.json')
+        : path.join(process.cwd(), '.pi', 'settings.json');
+
+    const settings = readSettings(filePath);
+    const existingPackages = ensurePackagesArray(settings);
+
+    // Only repair if packages is missing or empty but we have entries
+    if (existingPackages.length > 0) continue;
+    if (entries.length === 0) continue;
+
+    settings.packages = entries.map(e => path.resolve(e.vaultPath));
+    writeSettings(filePath, settings);
+  }
 }

@@ -8,7 +8,7 @@ export {
   listExtensions,
 } from './installer';
 export { ExtensionManager } from './manager';
-export { PiHarnessAdapter } from './pi-adapter';
+export { PiHarnessAdapter, repairSettings } from './pi-adapter';
 export type {
   DiagnosticRecord,
   ValidationResult,
