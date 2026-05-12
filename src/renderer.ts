@@ -89,6 +89,12 @@ export function chooseNextAction(params: { mode: Mode; stage: Stage; sourcePath?
         : 'Validate the package first, then restart pi to reload after install.';
     case 'update':
       return 'Re-validate the external workspace, then refresh the installed package only if validation passes.';
+    case 'enable':
+      return 'Enable the extension to make it active in the harness.';
+    case 'disable':
+      return 'Disable the extension to deactivate it without removing files.';
+    case 'list':
+      return 'List all registered extensions with their scope and status.';
     case 'remove':
       return 'Remove the installed package, then keep the source workspace untouched.';
   }

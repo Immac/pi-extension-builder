@@ -1,10 +1,11 @@
-export type Mode = 'plan' | 'scaffold' | 'review' | 'document' | 'validate' | 'install' | 'update' | 'remove';
+export type Mode = 'plan' | 'scaffold' | 'review' | 'document' | 'validate' | 'install' | 'update' | 'remove' | 'enable' | 'disable' | 'list';
 export type Stage = 'idea' | 'draft' | 'workspace' | 'validated' | 'installed' | 'maintenance' | 'unknown';
 
 export function normalizeMode(value: string | undefined, stage: Stage, goal: string | undefined, path?: string): Mode {
   const candidate = value?.trim().toLowerCase();
-  if (candidate === 'plan' || candidate === 'scaffold' || candidate === 'review' || candidate === 'document' || candidate === 'validate' || candidate === 'install' || candidate === 'update' || candidate === 'remove') {
-    return candidate;
+  const coreModes = ['plan', 'scaffold', 'review', 'document', 'validate', 'install', 'update', 'remove', 'enable', 'disable', 'list'] as const;
+  if (coreModes.includes(candidate as any)) {
+    return candidate as Mode;
   }
 
   const stageMode = modeFromStage(stage);
@@ -16,7 +17,19 @@ export function normalizeMode(value: string | undefined, stage: Stage, goal: str
   if (lowerGoal.includes('document') || lowerGoal.includes('readme') || lowerGoal.includes('doc')) {
     return 'document';
   }
-  if (lowerGoal.includes('remove') || lowerGoal.includes('uninstall') || lowerGoal.includes('delete')) {
+  if (lowerGoal.includes('uninstall') || lowerGoal.includes('delete')) {
+    return 'remove';
+  }
+  if (lowerGoal.includes('disable') || lowerGoal.includes('deactivate')) {
+    return 'disable';
+  }
+  if (lowerGoal.includes('enable') || lowerGoal.includes('activate')) {
+    return 'enable';
+  }
+  if (lowerGoal.includes('list') || lowerGoal.includes('ls')) {
+    return 'list';
+  }
+  if (lowerGoal.includes('remove')) {
     return 'remove';
   }
   if (lowerGoal.includes('update') || lowerGoal.includes('refresh') || lowerGoal.includes('upgrade')) {

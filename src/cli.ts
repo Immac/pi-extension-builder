@@ -1,32 +1,52 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { validateExtensionProject } from './validator';
-import { runDeterministicInstall } from './installer';
+import { runDeterministicInstall, installExtension, uninstallExtension, enableExtension, disableExtension, listExtensions } from './installer';
+import type { Scope } from './types';
 
-const PACKAGE_VERSION = '0.2.0';
+const PACKAGE_VERSION = '0.3.0';
 
 const USAGE = `pi-extension-creator v${PACKAGE_VERSION}
 
-A pi extension creator and validator for guiding LLM-driven extension workflows.
+Extension lifecycle manager — validate, install, enable/disable, and list extensions.
 
 Usage:
-  pi-extension-creator validate [path]      Validate an extension package (default command)
-  pi-extension-creator review [path]         Same as validate
-  pi-extension-creator bootstrap             Build, validate, and install self (from cwd)
-  pi-extension-creator install-self          Same as bootstrap
-  pi-extension-creator --help               Show this help message
-  pi-extension-creator --version            Show version
+  pi-extension-creator <command> [args..] [options]
 
-Options:
-  --json     Output validation results as JSON
-  --verbose  Print detailed progress messages
+Commands:
+  validate [path]               Validate an extension package (default command)
+  review [path]                 Same as validate
+  install <path>                Install an extension to user scope (default)
+  uninstall <name>              Remove an extension from the registry + vault
+  enable <name>                 Enable a registered extension
+  disable <name>                Disable a registered extension
+  list                          List registered extensions
+  bootstrap                     Build, validate, and install self (from cwd)
+  install-self                  Same as bootstrap
+
+Global options:
+  --scope user|project          Scope for install/enable/disable/uninstall/list
+                                 (default: user)
+  --json                        Output results as JSON
+  --verbose                     Print detailed progress messages
+  --help                        Show this help message
+  --version                     Show version
+
+Scope details:
+  user scope:   ~/.extension-manager/extensions/<name>
+  project scope: .extension-manager/extensions/<name>  (relative to cwd)
 
 Examples:
-  pi-extension-creator validate ./my-extension
-  pi-extension-creator validate --json
-  pi-extension-creator validate --verbose ./my-extension
-  pi-extension-creator bootstrap --json
+  pi-extension-creator install ./my-ext
+  pi-extension-creator install ./my-ext --scope project
+  pi-extension-creator enable my-ext --scope user
+  pi-extension-creator disable my-ext --scope user
+  pi-extension-creator uninstall my-ext --scope project
+  pi-extension-creator list --scope user --json
+  pi-extension-creator validate ./my-ext --json
+  pi-extension-creator bootstrap
 `;
 
 async function main(): Promise<void> {
@@ -42,14 +62,18 @@ async function main(): Promise<void> {
     return;
   }
 
-  const positional = args.filter((arg: string) => !arg.startsWith('-'));
-  const flags = new Set(args.filter((arg: string) => arg.startsWith('-')));
+  const positional = args.filter((arg: string) => !arg.startsWith('--'));
+  const flags = new Set(args.filter((arg: string) => arg.startsWith('--')));
   const command = positional[0] ?? 'validate';
-  const target = positional[1] ? path.resolve(positional[1]) : process.cwd();
+
   const jsonOutput = flags.has('--json');
   const verbose = flags.has('--verbose');
+  const scope: Scope = args.includes('--scope')
+    ? (args[args.indexOf('--scope') + 1] as Scope) || 'user'
+    : 'user';
 
-  const validCommands = ['validate', 'review', 'bootstrap', 'install-self'];
+  const validCommands = ['validate', 'review', 'bootstrap', 'install-self',
+    'install', 'uninstall', 'enable', 'disable', 'list'];
   if (!validCommands.includes(command)) {
     process.stderr.write(`Unknown command: "${command}"\n`);
     process.stderr.write(`Valid commands: ${validCommands.join(', ')}\n`);
@@ -58,7 +82,9 @@ async function main(): Promise<void> {
     return;
   }
 
+  // ── validate / review ──────────────────────────────────────────
   if (command === 'validate' || command === 'review') {
+    const target = positional[1] ? path.resolve(positional[1]) : process.cwd();
     if (verbose) process.stderr.write(`Validating extension at: ${target}\n`);
 
     const result = await validateExtensionProject(target);
@@ -75,7 +101,89 @@ async function main(): Promise<void> {
     return;
   }
 
-  // bootstrap / install-self
+  // ── install ────────────────────────────────────────────────────
+  if (command === 'install') {
+    const target = positional[1] ? path.resolve(positional[1]) : undefined;
+    if (!target) {
+      process.stderr.write('Error: install requires a source path.\n');
+      process.exitCode = 1;
+      return;
+    }
+
+    if (verbose) process.stderr.write(`Installing ${target} (scope: ${scope})...\n`);
+
+    // Run validation first
+    const validation = await validateExtensionProject(target);
+    if (validation.status === 'fail') {
+      process.stderr.write('Validation failed. Fix errors before installing.\n');
+      if (jsonOutput) process.stdout.write(`${JSON.stringify(validation, null, 2)}\n`);
+      else process.stdout.write(formatResult(validation));
+      process.exitCode = 1;
+      return;
+    }
+
+    if (scope === 'project') {
+      const result = installExtension({ sourcePath: target, scope, projectDir: process.cwd() });
+      logResult(result, command, jsonOutput);
+      process.exitCode = result.success ? 0 : 1;
+    } else {
+      const result = runDeterministicInstall({ sourcePath: target, validation, scope });
+      logInstallResult(result, jsonOutput);
+      process.exitCode = result.success ? 0 : 1;
+    }
+    return;
+  }
+
+  // ── uninstall ──────────────────────────────────────────────────
+  if (command === 'uninstall') {
+    const name = positional[1];
+    if (!name) {
+      process.stderr.write('Error: uninstall requires an extension name.\n');
+      process.exitCode = 1;
+      return;
+    }
+    if (verbose) process.stderr.write(`Uninstalling ${name} (scope: ${scope})...\n`);
+    const result = uninstallExtension({ name, scope, projectDir: process.cwd() });
+    logResult(result, command, jsonOutput);
+    process.exitCode = result.success ? 0 : 1;
+    return;
+  }
+
+  // ── enable / disable ───────────────────────────────────────────
+  if (command === 'enable' || command === 'disable') {
+    const name = positional[1];
+    if (!name) {
+      process.stderr.write(`Error: ${command} requires an extension name.\n`);
+      process.exitCode = 1;
+      return;
+    }
+    if (verbose) process.stderr.write(`${command}ing ${name} (scope: ${scope})...\n`);
+    const fn = command === 'enable' ? enableExtension : disableExtension;
+    const result = fn({ name, scope, projectDir: process.cwd() });
+    logResult(result, command, jsonOutput);
+    process.exitCode = result.success ? 0 : 1;
+    return;
+  }
+
+  // ── list ───────────────────────────────────────────────────────
+  if (command === 'list') {
+    const result = listExtensions({ scope, projectDir: process.cwd() });
+    if (jsonOutput) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else {
+      process.stdout.write(`Extensions (scope: ${scope}):\n`);
+      if (result.entries.length === 0) {
+        process.stdout.write('  (none)\n');
+      }
+      for (const entry of result.entries) {
+        const status = entry.enabled ? '✅' : '⛔';
+        process.stdout.write(`  ${status} ${entry.name}  (${entry.vaultPath})\n`);
+      }
+    }
+    return;
+  }
+
+  // ── bootstrap / install-self ───────────────────────────────────
   if (command === 'bootstrap' || command === 'install-self') {
     if (verbose) process.stderr.write(`Validating current package for self-install...\n`);
 
@@ -100,11 +208,28 @@ async function main(): Promise<void> {
     const installResult = runDeterministicInstall({
       sourcePath: process.cwd(),
       validation: result,
+      scope,
     });
 
     process.stdout.write(`${installResult.message}\n`);
     process.exitCode = installResult.success ? 0 : 1;
     return;
+  }
+}
+
+function logResult(result: { success: boolean; message: string }, command: string, jsonOutput: boolean): void {
+  if (jsonOutput) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    process.stdout.write(`${result.success ? '✅' : '❌'} ${result.message}\n`);
+  }
+}
+
+function logInstallResult(result: import('./installer').InstallResult, jsonOutput: boolean): void {
+  if (jsonOutput) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    process.stdout.write(`${result.success ? '✅' : '❌'} ${result.message}\n`);
   }
 }
 
@@ -133,9 +258,7 @@ function formatResult(result: Awaited<ReturnType<typeof validateExtensionProject
 }
 
 function formatLocation(file?: string, line?: number, column?: number): string {
-  if (!file) {
-    return '';
-  }
+  if (!file) return '';
   const suffix = line ? `:${line}${column ? `:${column}` : ''}` : '';
   return ` (${file}${suffix})`;
 }

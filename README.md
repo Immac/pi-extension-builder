@@ -1,255 +1,157 @@
-# pi-extension-creator
+# Pi Extension Creator
 
-A pi.dev extension that helps LLMs create, validate, and install pi extensions through guided workflows.
+A lifecycle manager for pi.dev extensions — validate, install, enable/disable, and document extensions with scope-aware vault management and harness-agnostic architecture.
 
-![TypeScript](https://img.shields.io/badge/TypeScript-ES2022-blue?style=flat-square&logo=typescript)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue?style=flat-square&logo=typescript)
 ![MIT License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![Pi Extension](https://img.shields.io/badge/pi--extension-orange?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-41%20passing-brightgreen?style=flat-square)
+[![Tests](https://img.shields.io/badge/tests-51%20passing-brightgreen?style=flat-square)]()
 
-> ⚠️ **Personal Project Disclaimer**: This is a personal project created for my own use.
-> I cannot guarantee regular maintenance, timely updates, or support. Use at your own discretion.
+## Features
 
----
+- 📦 **Scope-aware installs** — User scope (`~/.extension-manager/`) or project scope (`.extension-manager/`)
+- ✅ **Validation** — Checks package.json, tsconfig, entrypoint, and runs the TypeScript compiler
+- 🔁 **Enable/disable** — Toggle extensions on/off without removing files
+- 📋 **Registry tracking** — JSON registry per scope tracks all installed extensions
+- 🔌 **Harness-agnostic** — Core manager doesn't depend on pi; a `PiHarnessAdapter` bridges to pi's `settings.json`
+- 🔔 **Cross-session reload notification** — All running pi sessions see a footer warning when extensions change
+- 📐 **Documentation generation** — LLM-driven README.md and ARCHITECTURE.md generation
+- 🧪 **51 tests** — Comprehensive test coverage
 
-## What is this?
+## Provided Tool
 
-The **pi-extension-creator** is a "factory for pi extensions" — it provides a complete lifecycle management system for building, validating, and installing pi extensions entirely through LLM-driven tool calls.
+| Tool name | Description | Modes |
+|---|---|---|
+| `extension_creator` | Validate, install, enable/disable, list, document extensions | `plan`, `scaffold`, `review`, `validate`, `install`, `enable`, `disable`, `remove`, `list`, `document`, `update` |
 
-Instead of manually managing extension files and running shell commands, LLMs use the single `extension_creator` **tool** to:
+## Quick Start
 
-- 🎯 **Plan** — Analyze a goal and produce a build plan
-- 🛠️ **Scaffold** — Generate starter package structure
-- ✅ **Validate** — Run code-based TypeScript/package checks
-- 📝 **Document** — Auto-generate README & ARCHITECTURE docs
-- 📦 **Install** — Deterministic copy to `~/.pi-extensions/<name>`
-- 🔄 **Update/Remove** — Refresh or uninstall extensions cleanly
-
----
-
-## Architecture Overview
-
-```
-src/
-├── extension.ts       # Tool entrypoint — delegates to all sub-modules
-├── router.ts          # Mode/stage/kind inference from natural language
-├── planner.ts         # Build plan generation
-├── validator.ts       # Code-based validation engine (manifest + tsc)
-├── installer.ts       # Deterministic file-copy install to ~/.pi-extensions/
-├── documenter.ts      # Automatic README/ARCHITECTURE generation
-├── renderer.ts        # Payload rendering + next-action selection
-├── cli.ts             # Standalone CLI (validate, bootstrap, --help)
-├── types.ts           # Shared TypeScript interfaces
-└── __tests__/         # 41 tests across 3 test suites
-    ├── validator.test.ts
-    ├── installer.test.ts
-    ├── router.test.ts
-    └── helpers.ts
-```
-
----
-
-## ✨ Features
-
-<table>
-<tr>
-<td width="50%">
-
-### 🎯 **Intelligent Routing**
-Infers extension stage (`idea` → `draft` → `workspace` → `validated` → `installed` → `maintenance`) and starting mode from natural language requests.
-
-</td>
-<td width="50%">
-
-### ✅ **One-Pass Validation**
-Batches all diagnostics before returning. Reports manifest errors, entrypoint issues, and tsconfig problems in a single pass — no more fix-one-thing-at-a-time.
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 📦 **Deterministic Install**
-Copies extensions to `~/.pi-extensions/<name>` (excluding `.pi` directories) and updates `~/.pi/agent/settings.json`. Replaces existing installations automatically.
-
-</td>
-<td width="50%">
-
-### 📝 **Automatic Documentation**
-Analyzes source code structure, detects extension type, and generates README.md and ARCHITECTURE.md with badges, features, and usage guides.
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 🔧 **Improved CLI**
-`--help`, `--version`, `--verbose`, `--json` flags. Clear error messages for invalid commands.
-
-</td>
-<td width="50%">
-
-### 🧪 **41 Tests, All Passing**
-Vitest test suite covering validator, installer, and router logic. Pre-commit hook runs `tsc --noEmit` + `vitest run` on every commit.
-
-</td>
-</tr>
-</table>
-
----
-
-## 🚀 Installation
+### Install the extension-creator itself
 
 ```bash
-# First-time setup
-npm install
+# From the extension-creator directory
 npm run build
-npm run bootstrap    # Self-install into ~/.pi-extensions/pi-extension-creator
+pi-extension-creator bootstrap
+
+# Then /reload in pi
 ```
 
-The `bootstrap` command validates the package, copies it to `~/.pi-extensions/pi-extension-creator`, and updates `~/.pi/agent/settings.json`.
-
----
-
-## 💡 Usage
-
-### Tool Interface (Primary)
-
-The `extension_creator` tool is the main interface:
-
-| Parameter | Description |
-|-----------|-------------|
-| `goal` | What you want to build or do |
-| `mode` | `plan` \| `scaffold` \| `review` \| `validate` \| `install` \| `update` \| `remove` \| `document` |
-| `stage` | `idea` \| `draft` \| `workspace` \| `validated` \| `installed` \| `maintenance` |
-| `path` | Path to extension workspace |
-| `extensionKind` | `tool` \| `command` \| `prompt` \| `provider` (auto-inferred) |
-| `strict` | Enforce stricter validation rules |
-| `note` | Additional context |
-
-#### Examples
-
-**Create a new extension:**
-```
-User: "Create a tool extension that adds git operations"
-LLM → extension_creator(goal="...", mode="plan", stage="idea")
-     → Returns architecture plan, suggested files, cautions
-LLM → Scaffolds files, implements extension
-LLM → extension_creator(goal="...", mode="validate", path="./my-ext")
-     → If pass: extension_creator(goal="...", mode="install", path="./my-ext")
-```
-
-**Generate documentation:**
-```
-User: "Generate docs for my extension"
-LLM → extension_creator(mode="document", path="./my-ext")
-     → Analyzes source, writes README.md and optionally ARCHITECTURE.md
-```
-
-### CLI Interface
+### Validate an extension
 
 ```bash
-pi-extension-creator validate [path]           # Validate an extension package
-pi-extension-creator validate --json           # Machine-readable output
-pi-extension-creator validate --verbose        # Detailed progress
-pi-extension-creator bootstrap                # Self-install from cwd
-pi-extension-creator --help                   # Show usage
-pi-extension-creator --version                # Show version
+pi-extension-creator validate ./path/to/my-ext
+pi-extension-creator validate --json ./path/to/my-ext
+pi-extension-creator validate --verbose ./path/to/my-ext
 ```
 
----
+### Install an extension
 
-## 🔧 Development
+```bash
+# User scope (default) — installs to ~/.extension-manager/extensions/<name>
+pi-extension-creator install ./path/to/my-ext
+
+# Project scope — installs to ./.extension-manager/extensions/<name>
+pi-extension-creator install ./path/to/my-ext --scope project
+```
+
+### Enable/disable an extension
+
+```bash
+pi-extension-creator enable my-ext
+pi-extension-creator disable my-ext --scope project
+pi-extension-creator enable my-ext --scope user
+```
+
+### List extensions
+
+```bash
+pi-extension-creator list
+pi-extension-creator list --scope user --json
+```
+
+### Uninstall an extension
+
+```bash
+pi-extension-creator uninstall my-ext
+pi-extension-creator uninstall my-ext --scope project
+```
+
+### Generate documentation
+
+```bash
+pi-extension-creator validate ./path/to/my-ext
+# Then use the extension_creator tool with mode=document
+```
+
+## Usage Examples
+
+### Via the pi tool (inside pi)
+
+```
+extension_creator mode=install sourcePath=./my-ext scope=user
+extension_creator mode=enable sourcePath=my-ext scope=project
+extension_creator mode=disable sourcePath=my-ext scope=user
+extension_creator mode=list scope=user
+extension_creator mode=remove sourcePath=my-ext scope=project
+extension_creator mode=validate sourcePath=./my-ext
+extension_creator mode=document sourcePath=./my-ext
+```
+
+### Via the CLI
+
+```bash
+# Full lifecycle: build, validate, install
+cd my-extension
+npm run build
+pi-extension-creator validate .
+pi-extension-creator install ./
+
+# Later, disable it
+pi-extension-creator disable my-extension
+
+# Later, completely remove it
+pi-extension-creator uninstall my-extension
+```
+
+## Cross-session Reload Notification
+
+When an extension is installed, enabled, disabled, or uninstalled, the manager bumps a `lastModified` timestamp in the registry. The extension-creator's pi extension checks this on `session_start` and `turn_start`:
+
+- If a change was made in another session, all running pi sessions show a footer: `⚠️ Extensions changed — /reload to apply`
+- After `/reload`, the warning clears
+- For real-time notifications across sessions, set `EXT_MANAGER_WATCH=1` to enable `fs.watch` (zero CPU at idle, fires instantly on change)
+
+## Development
 
 ### Prerequisites
 
-- Node.js 18+
-- TypeScript 5.6+
+- Node.js >= 18
+- npm
+- pi.dev (for testing the pi extension)
+
+### Setup
+
+```bash
+git clone <repo>
+cd pi-extension-creator
+npm install
+```
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `npm install` | Install dependencies |
-| `npm run build` | Compile TypeScript |
-| `npm test` | Run 41 tests (Vitest) |
-| `npm run test:watch` | Watch mode |
-| `npm run test:coverage` | With coverage report |
-| `npm run validate:src` | Type-check without emitting |
-| `npm run precommit` | Type-check + test (runs on every commit) |
-| `npm run clean` | Remove build artifacts |
-
-### Pre-commit Hook
-
-A pre-commit hook runs `tsc --noEmit && vitest run` automatically via `simple-git-hooks`. Installed on `npm install`.
-
----
-
-## ✅ Validation Rules
-
-The validator checks (in one pass):
-
-- ✅ Valid `package.json` with kebab-case name
-- ✅ Single explicit entrypoint (`pi.extensions`, `pi.entrypoint`, or `main`)
-- ✅ Entrypoint file exists and is readable
-- ✅ Named TypeScript entrypoint preferred over `index.ts`
-- ✅ Valid `tsconfig.json`
-- ✅ TypeScript compilation via `tsc --noEmit`
-- ✅ All runtime dependencies declared in `package.json`
-
-| Status | Meaning |
-|--------|---------|
-| `pass` | Package type-checks and is installable |
-| `warn` | Non-fatal cleanup issues (e.g., index.ts entrypoint, legacy main) |
-| `fail` | Package must not be installed until errors are fixed |
-
----
-
-## 🏗️ Project Structure
-
-```
-📦 pi-extension-creator/
-├── 📁 src/
-│   ├── extension.ts        # Main tool implementation (tool entrypoint)
-│   ├── router.ts           # Mode/stage/kind inference from natural language
-│   ├── planner.ts          # Build plan generation
-│   ├── validator.ts        # Extension package validator
-│   ├── installer.ts        # Deterministic install to ~/.pi-extensions/<name>
-│   ├── documenter.ts       # Automatic README/ARCHITECTURE generator
-│   ├── renderer.ts         # Payload rendering + next-action selection
-│   ├── cli.ts              # CLI entry point (--help, --json, --verbose)
-│   ├── types.ts            # Shared types
-│   ├── shims.d.ts          # Pi SDK type shims
-│   └── __tests__/          # 41 tests
-├── 📁 prompts/             # LLM prompt templates
-│   ├── init-extension.md
-│   ├── create-extension.md
-│   └── documentation.md
-├── 📁 skills/              # Specialized workflows
-│   ├── zero-to-documented/
-│   └── use-extension-creator-install/
-├── 📁 dist/                # Build output
-├── ARCHITECTURE.md         # Detailed design specification
-├── CHANGELOG.md            # Version history
-├── CONTRIBUTING.md         # Contribution guide
-├── README.md               # This file
-├── package.json
-├── tsconfig.json
-├── vitest.config.ts
-└── LICENSE
+```bash
+npm run build          # Compile TypeScript → dist/
+npm test               # Run vitest suite (51 tests)
+npm run test:watch     # Watch mode
+npm run test:coverage  # With coverage report
+npm run validate:src   # TypeScript type-check only
+npm run bootstrap      # Build + install self (user scope)
+npm run self-install   # Same as bootstrap
 ```
 
----
+## Resources
 
-## 📚 Resources
-
-- [Architecture Spec](./ARCHITECTURE.md)
-- [Changelog](./CHANGELOG.md)
-- [Contributing Guide](./CONTRIBUTING.md)
-- [pi Coding Agent Documentation](https://github.com/mariozechner/pi-coding-agent)
-
----
-
-## 📄 License
-
-MIT — see [LICENSE](LICENSE).
+- [Pi Extensions Documentation](https://pi.dev/docs/extensions)
+- [Pi Packages Documentation](https://pi.dev/docs/packages)
+- [TypeScript](https://www.typescriptlang.org/)
+- [Vitest](https://vitest.dev/)
