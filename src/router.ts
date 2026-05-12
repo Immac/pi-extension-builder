@@ -20,11 +20,11 @@ export function normalizeMode(value: string | undefined, stage: Stage, goal: str
   if (lowerGoal.includes('uninstall') || lowerGoal.includes('delete')) {
     return 'remove';
   }
-  if (lowerGoal.includes('enable') || lowerGoal.includes('activate')) {
-    return 'enable';
-  }
   if (lowerGoal.includes('disable') || lowerGoal.includes('deactivate')) {
     return 'disable';
+  }
+  if (lowerGoal.includes('enable') || lowerGoal.includes('activate')) {
+    return 'enable';
   }
   if (lowerGoal.includes('list') || lowerGoal.includes('ls')) {
     return 'list';

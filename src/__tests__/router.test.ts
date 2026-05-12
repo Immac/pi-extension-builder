@@ -4,7 +4,7 @@ import type { Stage } from '../router';
 
 describe('normalizeMode', () => {
   it('returns the mode when a valid mode string is given', () => {
-    const modes = ['plan', 'scaffold', 'review', 'document', 'validate', 'install', 'update', 'remove'] as const;
+    const modes = ['plan', 'scaffold', 'review', 'document', 'validate', 'install', 'update', 'remove', 'enable', 'disable', 'list'] as const;
     for (const mode of modes) {
       expect(normalizeMode(mode, 'idea', undefined)).toBe(mode);
     }
@@ -13,6 +13,9 @@ describe('normalizeMode', () => {
   it('handles mixed casing', () => {
     expect(normalizeMode('PLAN', 'idea', undefined)).toBe('plan');
     expect(normalizeMode('Validate', 'idea', undefined)).toBe('validate');
+    expect(normalizeMode('ENABLE', 'idea', undefined)).toBe('enable');
+    expect(normalizeMode('Disable', 'idea', undefined)).toBe('disable');
+    expect(normalizeMode('List', 'idea', undefined)).toBe('list');
   });
 
   it('infers mode from stage when no mode given', () => {
@@ -35,6 +38,21 @@ describe('normalizeMode', () => {
     expect(normalizeMode(undefined, 'unknown', 'remove extension')).toBe('remove');
     expect(normalizeMode(undefined, 'unknown', 'uninstall package')).toBe('remove');
     expect(normalizeMode(undefined, 'unknown', 'delete extension')).toBe('remove');
+  });
+
+  it('infers enable mode from goal keywords', () => {
+    expect(normalizeMode(undefined, 'unknown', 'enable my-ext')).toBe('enable');
+    expect(normalizeMode(undefined, 'unknown', 'activate extension')).toBe('enable');
+  });
+
+  it('infers disable mode from goal keywords', () => {
+    expect(normalizeMode(undefined, 'unknown', 'disable my-ext')).toBe('disable');
+    expect(normalizeMode(undefined, 'unknown', 'deactivate extension')).toBe('disable');
+  });
+
+  it('infers list mode from goal keywords', () => {
+    expect(normalizeMode(undefined, 'unknown', 'list extensions')).toBe('list');
+    expect(normalizeMode(undefined, 'unknown', 'ls extensions')).toBe('list');
   });
 
   it('infers update mode from goal keywords', () => {
