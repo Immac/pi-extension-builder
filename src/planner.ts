@@ -6,6 +6,8 @@ export interface ExtensionPlan {
   cautions: string[];
 }
 
+/** Build a structured plan for scaffolding a new extension.
+ *  Generates file list, steps, and cautions based on the extension kind and goal. */
 export function buildPlan(params: { goal?: string; extensionKind: string; strict: boolean; note?: string }): ExtensionPlan {
   const title = `Plan for ${params.extensionKind}`;
   const summary = params.goal

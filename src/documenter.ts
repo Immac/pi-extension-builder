@@ -7,9 +7,8 @@ export interface GeneratedDocs {
   filesWritten: string[];
 }
 
-/**
- * Analyze an extension at the given path and generate documentation.
- */
+/** Analyze an extension at the given path and generate README.md (and optionally ARCHITECTURE.md).
+ *  Reads package.json, entrypoint source, and tsconfig to infer extension characteristics. */
 export async function generateDocumentation(sourcePath: string): Promise<GeneratedDocs> {
   const resolvedPath = path.resolve(sourcePath);
   const filesWritten: string[] = [];
@@ -170,12 +169,16 @@ function hasManySourceFiles(dir: string): boolean {
   }
 }
 
+/** Check if source contains a call to pi.registerCommand(…) using word-boundary matching. */
 function detectCommands(source: string | undefined): boolean {
-  return source?.includes('registerCommand') ?? false;
+  if (!source) return false;
+  return /\bregisterCommand\s*\(/.test(source);
 }
 
+/** Check if source contains a call to pi.registerTool(…) using word-boundary matching. */
 function detectTools(source: string | undefined): boolean {
-  return source?.includes('registerTool') ?? false;
+  if (!source) return false;
+  return /\bregisterTool\s*\(/.test(source);
 }
 
 function listSourceFiles(dir: string): string[] {

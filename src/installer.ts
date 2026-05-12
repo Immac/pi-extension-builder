@@ -48,7 +48,9 @@ export function runDeterministicInstall(params: {
   };
 }
 
-/** Run a scope-aware install using the ExtensionManager. */
+/** Run a scope-aware install using the ExtensionManager.
+ *  Validates source path exists, copies to vault, registers in registry,
+ *  and syncs to the pi harness adapter. */
 export function installExtension(opts: {
   sourcePath: string;
   name?: string;
@@ -62,6 +64,8 @@ export function installExtension(opts: {
   return manager.install(opts.sourcePath, opts.scope, { name: opts.name });
 }
 
+/** Remove an extension from the vault and registry.
+ *  Calls harness onUninstall before removing files. */
 export function uninstallExtension(opts: {
   name: string;
   scope: Scope;
@@ -74,6 +78,7 @@ export function uninstallExtension(opts: {
   return manager.uninstall(opts.name, opts.scope);
 }
 
+/** Enable a registered extension without modifying vault files. */
 export function enableExtension(opts: {
   name: string;
   scope: Scope;
@@ -86,6 +91,7 @@ export function enableExtension(opts: {
   return manager.enable(opts.name, opts.scope);
 }
 
+/** Disable a registered extension without removing vault files. */
 export function disableExtension(opts: {
   name: string;
   scope: Scope;
@@ -98,6 +104,7 @@ export function disableExtension(opts: {
   return manager.disable(opts.name, opts.scope);
 }
 
+/** List all registered extensions for a scope (defaults to all scopes). */
 export function listExtensions(opts?: {
   scope?: Scope;
   projectDir?: string;

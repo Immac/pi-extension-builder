@@ -8,6 +8,11 @@ declare module '@mariozechner/pi-ai' {
 declare module '@earendil-works/pi-coding-agent' {
   export interface ExtensionAPI {
     registerTool(tool: any): void;
+    registerCommand(name: string, options: {
+      description?: string;
+      getArgumentCompletions?: (prefix: string) => Array<{ value: string; label: string }> | null;
+      handler: (args: string, ctx: any) => void | Promise<void>;
+    }): void;
     on(event: string, handler: (...args: any[]) => any): void;
     appendEntry?<T>(type: string, data: T): void;
     setSystemPrompt?(prompt: string): void;
