@@ -5,7 +5,7 @@
 ### Added
 - **Deterministic bootstrap script** (`scripts/bootstrap.sh`): Single `npm run bootstrap` command that clean → builds → self-installs into vault → removes stale dirs → verifies.
 - **Project skill** (`.pi/skills/deterministic-bootstrap/`): Tells the LLM to run `npm run bootstrap` for self-install.
-- **`npm run bootstrap`** now uses the deterministic script (was inline `npm run build && node dist/cli.js bootstrap`).
+- **`npm run bootstrap`** and **`npm run self-install`** both run `scripts/bootstrap.sh` (deterministic script). Previously `self-install` ran inline steps without cleanup/verify.
 
 ### Changed
 - Quick Start updated to use single `npm run bootstrap` command.

@@ -30,7 +30,7 @@
     "postinstall": "npx simple-git-hooks 2>/dev/null || true",
     "precommit": "npm run validate:src && npm test",
     "bootstrap": "bash scripts/bootstrap.sh",
-    "self-install": "npm run build && node dist/cli.js bootstrap",
+    "self-install": "bash scripts/bootstrap.sh",
     "validate:src": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

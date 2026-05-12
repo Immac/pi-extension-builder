@@ -145,7 +145,7 @@ npm run test:watch     # Watch mode
 npm run test:coverage  # With coverage report
 npm run validate:src   # TypeScript type-check only
 npm run bootstrap      # Deterministic self-install: clean → build → vault install → verify
-npm run self-install   # Bootstrap via CLI (no verify step)
+npm run self-install   # Alias for bootstrap
 ```
 
 ## Project Skills
