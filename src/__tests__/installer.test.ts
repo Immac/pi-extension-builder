@@ -245,6 +245,103 @@ describe('ExtensionManager.install', () => {
   });
 });
 
+// ── Extension name sanitization ───────────────────────────────────────
+
+describe('ExtensionManager name sanitization', () => {
+  describe('install', () => {
+    it('rejects name with path separators', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user', { name: '../../evil' });
+        expect(result.success).toBe(false);
+        expect(result.message).toMatch(/path separator|invalid/i);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('rejects name that is a relative path component', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user', { name: '..' });
+        expect(result.success).toBe(false);
+        expect(result.message).toMatch(/relative path|invalid/i);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('rejects name that is just a dot', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user', { name: '.' });
+        expect(result.success).toBe(false);
+        expect(result.message).toMatch(/relative path|invalid/i);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('rejects absolute path as name', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user', { name: '/etc/passwd' });
+        expect(result.success).toBe(false);
+        expect(result.message).toMatch(/path separator|invalid/i);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('accepts valid kebab-case name', () => {
+      const mgr = userManager();
+      const { dir, cleanup } = createTestPackage({ name: 'safe-name' });
+      try {
+        const result = mgr.install(dir, 'user');
+        expect(result.success).toBe(true);
+      } finally {
+        cleanup();
+      }
+    });
+  });
+
+  describe('uninstall', () => {
+    it('rejects name with path separators', () => {
+      const mgr = userManager();
+      const result = mgr.uninstall('../../etc', 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/path separator|invalid/i);
+    });
+
+    it('rejects empty name', () => {
+      const mgr = userManager();
+      const result = mgr.uninstall('', 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/empty|invalid/i);
+    });
+  });
+
+  describe('enable / disable', () => {
+    it('rejects name with backslash in enable', () => {
+      const mgr = userManager();
+      const result = mgr.enable('..\\etc', 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/path separator|invalid/i);
+    });
+
+    it('rejects name with forward slash in disable', () => {
+      const mgr = userManager();
+      const result = mgr.disable('../../../etc', 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/path separator|invalid/i);
+    });
+  });
+});
+
 // ── copyDirExcludingPi: Symlink traversal guard ────────────────────────────
 
 describe('copyDirExcludingPi symlink guard', () => {

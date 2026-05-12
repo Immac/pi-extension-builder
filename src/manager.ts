@@ -37,6 +37,14 @@ export class ExtensionManager {
       }
     }
     if (!name) name = path.basename(source);
+    try {
+      sanitizeExtensionName(name);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : `Invalid extension name: ${name}`,
+      };
+    }
     const vaultRoot = this.vaultRoot(scope);
     const destDir = path.join(vaultRoot, 'extensions', name);
 
@@ -95,6 +103,15 @@ export class ExtensionManager {
   }
 
   uninstall(name: string, scope: Scope, opts?: { skipSync?: boolean }): ManagerResult {
+    try {
+      sanitizeExtensionName(name);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : `Invalid extension name: ${name}`,
+      };
+    }
+
     const vaultRoot = this.vaultRoot(scope);
     const destDir = path.join(vaultRoot, 'extensions', name);
 
@@ -126,6 +143,15 @@ export class ExtensionManager {
   }
 
   enable(name: string, scope: Scope, opts?: { skipSync?: boolean }): ManagerResult {
+    try {
+      sanitizeExtensionName(name);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : `Invalid extension name: ${name}`,
+      };
+    }
+
     const registry = this.readRegistry(scope);
     const entry = registry.extensions.find((e) => e.name === name && e.scope === scope);
     if (!entry) {
@@ -148,6 +174,15 @@ export class ExtensionManager {
   }
 
   disable(name: string, scope: Scope, opts?: { skipSync?: boolean }): ManagerResult {
+    try {
+      sanitizeExtensionName(name);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : `Invalid extension name: ${name}`,
+      };
+    }
+
     const registry = this.readRegistry(scope);
     const entry = registry.extensions.find((e) => e.name === name && e.scope === scope);
     if (!entry) {
@@ -243,6 +278,29 @@ export class ExtensionManager {
     } catch (error) {
       console.warn(`[extension-manager] Warning: harness onUninstall failed: ${error}`);
     }
+  }
+}
+
+// ── Name sanitization ────────────────────────────────────────────────
+
+const EXTENSION_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
+/**
+ * Validate that an extension name does not contain path-traversal sequences
+ * or operating-system path separators. Throws on invalid names.
+ */
+function sanitizeExtensionName(name: string): void {
+  if (!name || name.trim().length === 0) {
+    throw new Error('Extension name must not be empty');
+  }
+  if (name.includes('/') || name.includes('\\')) {
+    throw new Error(`Extension name "${name}" must not contain path separators`);
+  }
+  if (name === '.' || name === '..' || name.startsWith('..')) {
+    throw new Error(`Extension name "${name}" must not contain relative path components`);
+  }
+  if (path.isAbsolute(name)) {
+    throw new Error(`Extension name "${name}" must not be an absolute path`);
   }
 }
 
