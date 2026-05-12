@@ -255,7 +255,29 @@ function copyDirExcludingPi(src: string, dest: string): void {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.name === '.pi') continue;
-    if (entry.isDirectory()) {
+
+    if (entry.isSymbolicLink()) {
+      // Resolve symlink target and verify it's within the source tree
+      const realTarget = fs.realpathSync(srcPath);
+      const resolvedSrc = path.resolve(src);
+      if (realTarget === resolvedSrc) {
+        throw new Error(
+          `Symlink "${entry.name}" is self-referential; cannot copy`,
+        );
+      }
+      if (!realTarget.startsWith(resolvedSrc + path.sep)) {
+        throw new Error(
+          `Symlink "${entry.name}" points outside the source tree: ${realTarget}`,
+        );
+      }
+      // Symlink within source tree — resolve to real path and follow
+      const stat = fs.statSync(srcPath);
+      if (stat.isDirectory()) {
+        copyDirExcludingPi(realTarget, destPath);
+      } else {
+        fs.copyFileSync(realTarget, destPath);
+      }
+    } else if (entry.isDirectory()) {
       copyDirExcludingPi(srcPath, destPath);
     } else {
       fs.copyFileSync(srcPath, destPath);

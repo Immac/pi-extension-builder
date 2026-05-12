@@ -154,6 +154,120 @@ describe('ExtensionManager.install', () => {
     expect(result.success).toBe(false);
     expect(result.message).toContain('does not exist');
   });
+
+  it('fails when source contains a symlink to a file outside the source tree', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-outside' });
+    try {
+      // Create external target file
+      const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'));
+      fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'sensitive data');
+
+      // Create symlink inside extension pointing outside
+      fs.symlinkSync(
+        path.join(outsideDir, 'secret.txt'),
+        path.join(dir, 'leak.txt'),
+      );
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('outside the source tree');
+
+      // Cleanup external dir
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('fails when source contains a self-referential symlink', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-selfref' });
+    try {
+      // Create self-referential symlink
+      fs.symlinkSync(dir, path.join(dir, 'self'));
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('self-referential');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('succeeds when source contains a symlink to a file inside the source tree', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-internal-file' });
+    try {
+      // Create an internal target file
+      fs.writeFileSync(path.join(dir, 'internal.txt'), 'hello');
+
+      // Create symlink inside extension pointing to an internal file
+      fs.symlinkSync(
+        path.join(dir, 'internal.txt'),
+        path.join(dir, 'link-to-internal.txt'),
+      );
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(true);
+
+      // The symlink target should have been copied by following it
+      const vaultFile = path.join(result.entry!.vaultPath, 'link-to-internal.txt');
+      expect(fs.existsSync(vaultFile)).toBe(true);
+      expect(fs.readFileSync(vaultFile, 'utf8')).toBe('hello');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('succeeds when source contains a symlink to a directory inside the source tree', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-internal-dir' });
+    try {
+      // Create internal subdirectory with a file
+      const subDir = path.join(dir, 'sub');
+      fs.mkdirSync(subDir, { recursive: true });
+      fs.writeFileSync(path.join(subDir, 'nested.txt'), 'nested data');
+
+      // Create symlink to internal directory
+      fs.symlinkSync(subDir, path.join(dir, 'link-to-sub'));
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(true);
+
+      // The directory contents should have been copied by following the symlink
+      const vaultSub = path.join(result.entry!.vaultPath, 'link-to-sub');
+      expect(fs.existsSync(path.join(vaultSub, 'nested.txt'))).toBe(true);
+      expect(fs.readFileSync(path.join(vaultSub, 'nested.txt'), 'utf8')).toBe('nested data');
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ── copyDirExcludingPi: Symlink traversal guard ────────────────────────────
+
+describe('copyDirExcludingPi symlink guard', () => {
+  it('rejects symlink to directory outside the source tree', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'ext-outside-dir' });
+    try {
+      // Create external directory with a file
+      const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-dir-'));
+      fs.writeFileSync(path.join(outsideDir, 'payload.txt'), 'evil');
+
+      // Symlink inside extension pointing to external directory
+      fs.symlinkSync(outsideDir, path.join(dir, 'external-dir'));
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('outside the source tree');
+
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ── ExtensionManager.enable / disable ────────────────────────────────
