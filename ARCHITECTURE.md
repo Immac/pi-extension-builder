@@ -1,301 +1,178 @@
-# Architecture: pi-extension-creator v0.2.0
+# Architecture — Pi Extension Creator
 
 ## Purpose
 
-**pi-extension-creator** provides a complete lifecycle management system for pi extensions. It is itself a pi extension (tool) that helps LLMs create, validate, document, and install other pi extensions. The primary interface is the `extension_creator` tool, not CLI commands.
+The pi-extension-creator manages the full lifecycle of pi.dev extensions: planning, scaffolding, validation, installation, enable/disable, documentation generation, and removal. It replaces ad-hoc extension management with a scope-aware vault system, a JSON registry, and a harness adapter pattern that keeps the core agnostic of the target AI coding tool.
 
----
-
-## Core Principles
-
-### 1. Tool-first interface
-The primary interface is a single `extension_creator` tool that the LLM calls during normal agent work. No command sprawl.
-
-### 2. External-first development
-Extensions are authored in normal project directories, outside pi's runtime folders. The installer copies from source workspace to install target.
-
-### 3. One-pass validation
-All diagnostics are collected before returning. The user sees all errors at once, not one-at-a-time.
-
-### 4. Deterministic install
-Installation uses `fs.cpSync()` to `~/.pi-extensions/<name>` and updates `~/.pi/agent/settings.json`. Always replaces existing copies.
-
-### 5. Automatic documentation
-The `document` mode analyzes source code structure and generates README.md and ARCHITECTURE.md automatically.
-
----
-
-## System Components (8 Modules)
+## System Components
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     extension.ts                            │
-│              (Tool entrypoint — 100 lines)                   │
-│   Routes requests to sub-modules based on mode/stage         │
-└──────┬──────┬──────┬──────┬──────┬──────┬───────────────────┘
-       │      │      │      │      │      │
-       ▼      ▼      ▼      ▼      ▼      ▼
-┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────────┐
-│router│ │plan- │ │valid-│ │insta-│ │docu- │ │renderer  │
-│.ts   │ │ner.ts│ │ator  │ │ller  │ │menter│ │.ts       │
-│      │ │      │ │.ts   │ │.ts   │ │.ts   │ │          │
-│Mode, │ │Build │ │Code- │ │Copy  │ │Auto- │ │Payload   │
-│stage,│ │plan  │ │based  │ │to    │ │gen   │ │rendering │
-│kind  │ │gener-│ │checks │ │~/.pi-│ │README│ │+ next    │
-│infer-│ │ation │ │(tsc,  │ │exten-│ │& AR- │ │action    │
-│ence  │ │      │ │manif- │ │sions │ │CHITE-│ │          │
-│      │ │      │ │est)   │ │/     │ │CTURE │ │          │
-└──────┘ └──────┘ └──────┘ └──────┘ └──────┘ └──────────┘
-                                    │
-                                    ▼
-                             ┌──────────────┐
-                             │   cli.ts     │
-                             │ (Standalone) │
-                             └──────────────┘
+┌────────────────────────────────────────────────────────┐
+│                    CLI (cli.ts)                         │
+│  Accepts commands: validate | install | enable |       │
+│    disable | uninstall | list | bootstrap              │
+└──────────┬─────────────────────────────────────────────┘
+           │
+           ▼
+┌────────────────────────────────────────────────────────┐
+│                Pi Tool (extension.ts)                   │
+│  Registers `extension_creator` tool + reload           │
+│  notification (session_start, turn_start)              │
+└──────────┬─────────────────────────────────────────────┘
+           │
+           ▼
+┌────────────────────────────────────────────────────────┐
+│                  Installer (installer.ts)               │
+│  Thin wrappers: installExtension, enableExtension,     │
+│  disableExtension, uninstallExtension, listExtensions  │
+│  Delegates to ExtensionManager + PiHarnessAdapter      │
+└──────────┬─────────────────────────────────────────────┘
+           │
+     ┌─────┴──────────────────┐
+     ▼                        ▼
+┌──────────────┐   ┌──────────────────────┐
+│ ExtensionMgr │   │   PiHarnessAdapter   │
+│ (manager.ts) │   │    (pi-adapter.ts)   │
+│              │   │                      │
+│ • Vault I/O  │   │ • Reads/writes pi's  │
+│ • Registry   │   │   settings.json      │
+│ • Timestamps │   │   packages[] array   │
+│ • Harness-   │   │ • Scope-aware path   │
+│   agnostic   │   │   resolution         │
+└──────┬───────┘   └──────────────────────┘
+       │
+       ▼
+┌────────────────────────────────────────────────────────┐
+│               Supporting Modules                        │
+│                                                         │
+│ validator.ts  — Checks package.json, tsconfig,          │
+│                 entrypoint, runs tsc --noEmit           │
+│                                                         │
+│ router.ts     — Normalizes mode/stage from user input   │
+│                                                         │
+│ renderer.ts   — Formats tool response payloads          │
+│                                                         │
+│ planner.ts    — Builds extension creation plans         │
+│                                                         │
+│ documenter.ts — Generates README.md/ARCHITECTURE.md     │
+│                                                         │
+│ types.ts      — Shared type definitions                 │
+└────────────────────────────────────────────────────────┘
 ```
 
-### 1. `extension.ts` — Tool Entrypoint
+## Key Principles
 
-**Responsibility**: Register the `extension_creator` tool with pi's `defineTool()` and handle the full lifecycle.
+1. **Harness-agnostic core** — `ExtensionManager` has no dependency on pi. It manages vaults and registries. Harness-specific behavior (e.g., updating pi's `settings.json`) lives in a pluggable `HarnessAdapter`.
 
-**Key behavior:**
-- Normalizes mode and stage from user input via `router.ts`
-- Runs validation when mode is `validate`, `review`, `install`, or `update`
-- Generates plans when mode is `plan` or `scaffold` via `planner.ts`
-- Triggers install when mode is `install` via `installer.ts`
-- Generates documentation when mode is `document` via `documenter.ts`
-- Renders response via `renderer.ts`
+2. **Scope isolation** — User and project scopes have separate vault roots and registries. Project vaults are portable (relative to the project directory).
 
-**Lines**: ~100 (was ~400 before refactoring — 75% reduction by delegating to modules)
+3. **Registry as source of truth** — `registry.json` tracks every extension with its name, source, vault path, scope, enabled state, and timestamps. The harness adapter reflects the registry state into the target tool's config.
 
-### 2. `router.ts` — Mode/Stage Inference
+4. **Timestamp-based change detection** — Every mutation bumps `lastModified` in the registry. The extension checks this on `session_start` and `turn_start` to detect cross-session changes without a background watcher.
 
-**Responsibility**: Infer the lifecycle stage and starting mode from natural language requests.
+## Key Data Structures
 
-**Exports:**
-- `normalizeMode(value, stage, goal, path?)` → `Mode`
-- `normalizeStage(value, goal, path?)` → `Stage`
-- `modeFromStage(stage)` → `Mode | undefined`
-- `inferKindFromGoal(goal)` → `string | undefined`
-
-**Inference priority:**
-1. Explicit mode/stage parameter
-2. Stage-based default (`idea` → `plan`, `draft` → `scaffold`, etc.)
-3. Goal keyword matching (`"document"` → `document`, `"validate"` → `validate`)
-4. Path presence → `review`
-5. Fallback → `plan`
-
-**Key fix**: `"uninstall"` is checked before `"install"` to avoid false routing.
-
-### 3. `planner.ts` — Build Plan Generation
-
-**Responsibility**: Generate structured build plans for new extensions.
-
-**Exports:**
-- `buildPlan({ goal, extensionKind, strict, note })` → `ExtensionPlan`
-
-**Output**: Title, summary, recommended files, suggested steps, cautions.
-
-### 4. `validator.ts` — Code-Based Validation Engine
-
-**Responsibility**: Validate extension packages against pi's architecture rules.
-
-**Key behaviors:**
-- Reads and parses `package.json`
-- Resolves the declared entrypoint (supports `pi.extensions`, `pi.entrypoint`, legacy `main`)
-- Enforces kebab-case package naming
-- Validates `tsconfig.json` exists and is valid
-- Runs `tsc --noEmit` with the project's tsconfig
-- Parses compiler output (both structured and free-form)
-- Scans entrypoint imports for undeclared dependencies
-- **Batches all diagnostics** — no early returns
-
-**Resolution priority for entrypoints:**
-1. `pi.extensions` array (first entry)
-2. `pi.entrypoint`
-3. `main` (legacy fallback, emits warning)
-
-**Export**: `validateExtensionProject(packagePath)` → `Promise<ValidationResult>`
-
-### 5. `installer.ts` — Deterministic Install
-
-**Responsibility**: Copy a validated extension package to `~/.pi-extensions/<name>`.
-
-**Key behaviors:**
-- Refuses to install if validation status is `fail`
-- Uses package name from validation result for install directory
-- Uses `fs.cpSync()` for fast recursive copy (Node 16.7+)
-- Replaces existing installation automatically
-- Updates `~/.pi/agent/settings.json` — removes old source path, inserts install path
-- Logs settings.json errors via `console.warn` instead of swallowing
-
-**Export**: `runDeterministicInstall({ sourcePath, validation })` → `InstallResult`
-
-### 6. `documenter.ts` — Automatic Documentation Generator
-
-**Responsibility**: Analyze extension source code and generate README.md and ARCHITECTURE.md.
-
-**Key behaviors:**
-- Reads `package.json` for name, description
-- Resolves entrypoint from manifest
-- Detects extension kind (tool, command, prompt, provider, complex)
-- Detects presence of prompts, skills, commands, tools
-- Generates README with badges, features table, install guide, dev commands
-- Generates ARCHITECTURE.md only for complex extensions (has many source files, commands, or both tools + prompts)
-- Lists all source files in architecture doc
-- `generateReadme()` and `generateArchitecture()` are pure functions returning strings
-
-### 7. `renderer.ts` — Output Rendering
-
-**Responsibility**: Convert the internal `ToolPayload` into user-facing text and determine the next action.
-
-**Exports:**
-- `renderPayload(payload)` → rendered string
-- `chooseNextAction({ mode, stage, sourcePath, validation, installResult })` → next action string
-- `buildDocumentationGuidance({ sourcePath, extensionKind })` → documentation guidance (legacy/fallback)
-- `ToolPayload` interface
-- `DocumentationGuidance` interface
-
-### 8. `cli.ts` — Standalone CLI
-
-**Responsibility**: Provide a command-line interface for validation and bootstrapping.
-
-**Commands:**
-- `validate [path]` — Validate an extension package
-- `review [path]` — Same as validate
-- `bootstrap` — Build, validate, and install self from cwd
-- `install-self` — Same as bootstrap
-
-**Flags:**
-- `--help` / `-h` — Show usage
-- `--version` / `-v` — Show version
-- `--json` — Machine-readable JSON output
-- `--verbose` — Detailed progress messages
-
----
-
-## Data Flow
-
-### Validation Flow
-```
-path → validator.ts
-  ├─ read package.json
-  ├─ resolve entrypoint
-  ├─ resolve tsconfig
-  ├─ run tsc --noEmit
-  ├─ parse compiler output
-  ├─ analyze dependencies
-  └─ return ValidationResult { status, errors, warnings, details }
-```
-
-### Install Flow
-```
-path → installer.ts
-  ├─ check validation.status !== 'fail'
-  ├─ resolve package name from validation or dir basename
-  ├─ mkdir -p ~/.pi-extensions/
-  ├─ cpSync (replaces existing)
-  ├─ cleanupSettingsJson (update ~/.pi/agent/settings.json)
-  └─ return InstallResult { success, extensionName, installPath, message }
-```
-
-### Document Flow
-```
-path → documenter.ts
-  ├─ read package.json
-  ├─ resolve entrypoint source
-  ├─ detect kind, commands, tools, prompts, skills
-  ├─ generateReadme() → string
-  ├─ if complex: generateArchitecture() → string
-  ├─ writeFileSync README.md
-  ├─ writeFileSync ARCHITECTURE.md (optional)
-  └─ return GeneratedDocs { readme, architecture, filesWritten }
-```
-
----
-
-## Extension Lifecycle Stages
+### Vault layout
 
 ```
-idea ──plan──→ draft ──scaffold──→ workspace ──review──→ validated
-                                                              │
-                                                              ▼
-                                                         install
-                                                              │
-                                                              ▼
-                                                         installed
-                                                              │
-                                                   ┌──────────┴──────────┐
-                                                   │                     │
-                                               update                remove
-                                                   │                     │
-                                                   ▼                     ▼
-                                              installed              (gone)
+~/.extension-manager/                    # User vault root
+  registry.json                          # User scope registry
+  extensions/
+    my-ext/                              # Installed extension files
+      package.json
+      dist/...
+      src/...
+
+<project>/.extension-manager/            # Project vault root
+  registry.json                          # Project scope registry
+  extensions/
+    my-ext/...
 ```
 
-| Stage | Meaning | Starting Mode |
-|-------|---------|---------------|
-| `idea` | Just an idea, no code yet | `plan` |
-| `draft` | Starter scaffold created | `scaffold` |
-| `workspace` | External repo/folder exists | `review` |
-| `validated` | Package passed validation | `install` |
-| `installed` | Already in pi | `review` or `update` |
-| `maintenance` | Needs updates or removal | `update` or `remove` |
+### Registry format
 
----
+```json
+{
+  "version": 1,
+  "lastModified": 1700000000000,
+  "extensions": [
+    {
+      "name": "my-ext",
+      "source": "/home/user/dev/my-ext",
+      "vaultPath": "/home/user/.extension-manager/extensions/my-ext",
+      "scope": "user",
+      "enabled": true,
+      "installedAt": 1700000000000,
+      "lastModified": 1700000000000
+    }
+  ]
+}
+```
 
-## Validation Rules
+## Interaction Flows
 
-| Check | Code | Severity |
-|-------|------|----------|
-| package.json exists | `manifest.missing` | error |
-| package.json is valid JSON | `manifest.invalid-json` | error |
-| Package name exists | `manifest.name.missing` | error |
-| Package name is kebab-case | `manifest.name.not-kebab-case` | error |
-| Entrypoint declared | `manifest.entrypoint.missing` | error |
-| Exactly one entrypoint | `manifest.entrypoint.multiple` | error |
-| Entrypoint file exists | `entrypoint.missing` | error |
-| Named entrypoint preferred | `entrypoint.named-file` | warning |
-| Index entrypoint legacy | `entrypoint.index-file` | warning |
-| tsconfig.json exists | `tsconfig.missing` | error |
-| TypeScript compiles | `compiler.*` | error/warning |
-| Undeclared dependencies | `dependencies.undeclared` | warning |
+### Install flow
 
----
+```
+1. User calls: install ./path --scope user
+2. CLI/tool calls installExtension({ sourcePath, scope, projectDir })
+3. installExtension creates ExtensionManager with PiHarnessAdapter
+4. ExtensionManager.install():
+   a. Derives name from package.json (or basename)
+   b. Copies source → <vault>/extensions/<name> (excluding .pi dirs)
+   c. Creates/updates registry entry with enabled=true
+   d. Bumps lastModified
+   e. Calls PiHarnessAdapter.onEnable(entry)
+5. PiHarnessAdapter.onEnable():
+   a. Reads ~/.pi/agent/settings.json
+   b. Adds vaultPath to packages[] array (deduped)
+   c. Writes settings.json
+```
 
-## Test Architecture
+### Enable/disable flow
 
-41 tests across 3 test suites:
+```
+1. User calls: enable my-ext --scope user
+2. ExtensionManager.enable():
+   a. Finds entry in registry
+   b. Sets enabled=true, bumps lastModified
+   c. Calls PiHarnessAdapter.onEnable(entry)
+3. PiHarnessAdapter adds vaultPath to packages[]
+```
 
-| Suite | Tests | Coverage |
-|-------|-------|----------|
-| `validator.test.ts` | 10 | Manifest checks, entrypoint resolution, tsconfig handling, batch diagnostics |
-| `installer.test.ts` | 5 | Validation gate, source-not-found, directory naming, replacement, validation override |
-| `router.test.ts` | 26 | Mode inference (9), stage inference (5), modeFromStage (1), kind inference (11) |
+### Cross-session reload notification
 
-Test infrastructure via `vitest` with `src/__tests__/helpers.ts` providing temp package creation.
+```
+Session A:  extension installed via tool
+            → registry.lastModified bumped to T2
 
----
+Session B:  user types next message
+            → turn_start fires
+            → checkReloadNeeded() compares registry.lastModified
+              against known timestamp (T1)
+            → T2 > T1 → sets footer:
+              "⚠️ Extensions changed (user) — /reload to apply"
 
-## Key Design Decisions
+Session B:  user runs /reload
+            → session_start fires
+            → markTimestamps() updates known timestamp to T2
+            → footer clears
+```
 
-### Why `fs.cpSync()` instead of custom recursive copy?
-Node 16.7+ provides native recursive `cpSync`. It's faster, handles edge cases (symlinks, permissions), and removes 19 lines of manual recursion.
+## File Inventory
 
-### Why batch diagnostics instead of early returns?
-One-pass validation reveals all issues at once, reducing the fix-revalidate loop from N iterations to 1.
-
-### Why `console.warn` instead of silent catch in settings.json?
-Silent error masking hides real problems (corrupt settings.json, permission issues). Logging gives debuggability without blocking install.
-
-### Why 8 modules instead of 1?
-The original `extension.ts` was ~400 lines handling mode inference, plan building, rendering, next-action logic, and documentation guidance — violating single responsibility. Splitting into 8 modules reduces the entrypoint to ~100 lines and makes each module independently testable.
-
----
-
-## Open Questions
-
-- Should installs default to global or project-local scope?
-- Should the tool support npm packages and git repos as sources, not just local paths?
-- How strict should cleanliness rules be for generated extensions?
-- Should the documenter support custom templates?
+| File | Role |
+|---|---|
+| `src/cli.ts` | CLI entry point (`pi-extension-creator` command) |
+| `src/extension.ts` | Pi extension entry point (registers tool + events) |
+| `src/manager.ts` | Core `ExtensionManager` class |
+| `src/pi-adapter.ts` | `PiHarnessAdapter` — bridges to pi settings |
+| `src/installer.ts` | Convenience wrappers for common operations |
+| `src/validator.ts` | Package validation (manifest, tsconfig, compiler) |
+| `src/router.ts` | Mode/stage normalization |
+| `src/renderer.ts` | Tool response formatting |
+| `src/planner.ts` | Extension creation plans |
+| `src/documenter.ts` | Documentation generation |
+| `src/types.ts` | Shared type definitions |
+| `prompts/` | Prompt templates (create-extension, documentation, init) |
+| `skills/` | pi skills for use-extension-creator-install, zero-to-documented |

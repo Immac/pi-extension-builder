@@ -1,29 +1,62 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { describe, it, expect } from 'vitest';
-import { runDeterministicInstall, type InstallResult } from '../installer';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { runDeterministicInstall } from '../installer';
+import { ExtensionManager } from '../manager';
 import { createTestPackage } from './helpers';
 
-describe('runDeterministicInstall', () => {
-  function makePassValidation(sourcePath: string, packageName: string) {
-    return {
-      status: 'pass' as const,
-      packageName,
-      errors: [] as any[],
-      warnings: [] as any[],
-      details: {
-        packagePath: sourcePath,
-        manifestFound: true,
-        tsconfigFound: true,
-        compilerChecked: true,
-        notes: [] as string[],
-        entrypoint: `src/extensions/${packageName}/index.ts` as string | undefined,
-        tsconfig: `${sourcePath}/tsconfig.json` as string | undefined,
-      },
-    };
-  }
+// ── Helpers ──────────────────────────────────────────────────────────
 
+function makePassValidation(sourcePath: string, packageName: string) {
+  return {
+    status: 'pass' as const,
+    packageName,
+    errors: [] as any[],
+    warnings: [] as any[],
+    details: {
+      packagePath: sourcePath,
+      manifestFound: true,
+      tsconfigFound: true,
+      compilerChecked: true,
+      notes: [] as string[],
+      entrypoint: `src/extensions/${packageName}/index.ts` as string | undefined,
+      tsconfig: `${sourcePath}/tsconfig.json` as string | undefined,
+    },
+  };
+}
+
+/** Temp directory used as vault root for the current test. Cleaned up in afterEach. */
+let testVaultDir: string;
+
+beforeEach(() => {
+  testVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ext-mgr-test-'));
+});
+
+afterEach(() => {
+  if (testVaultDir && fs.existsSync(testVaultDir)) {
+    fs.rmSync(testVaultDir, { recursive: true, force: true });
+  }
+});
+
+function userManager(): ExtensionManager {
+  return new ExtensionManager({ userVaultRoot: path.join(testVaultDir, 'user') });
+}
+
+function projectManager(): ExtensionManager {
+  return new ExtensionManager({ projectDir: path.join(testVaultDir, 'proj') });
+}
+
+function bothManagers(): { user: ExtensionManager; project: ExtensionManager } {
+  return {
+    user: new ExtensionManager({ userVaultRoot: path.join(testVaultDir, 'user') }),
+    project: new ExtensionManager({ projectDir: path.join(testVaultDir, 'proj') }),
+  };
+}
+
+// ── runDeterministicInstall (backward compat) ────────────────────────
+
+describe('runDeterministicInstall (backward compat)', () => {
   it('fails when validation status is fail', () => {
     const result = runDeterministicInstall({
       sourcePath: '/tmp/fake',
@@ -55,87 +88,203 @@ describe('runDeterministicInstall', () => {
     expect(result.success).toBe(false);
     expect(result.message).toContain('Source path does not exist');
   });
+});
 
-  it('installs to ~/.pi-extensions/<name> on success', () => {
-    const { dir, cleanup } = createTestPackage({ name: 'my-installed-ext' });
+// ── ExtensionManager.install ─────────────────────────────────────────
+
+describe('ExtensionManager.install', () => {
+  it('installs an extension to the user vault', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'test-ext' });
     try {
-      const result = runDeterministicInstall({ sourcePath: dir, validation: makePassValidation(dir, 'my-installed-ext') });
+      const result = mgr.install(dir, 'user');
 
       expect(result.success).toBe(true);
-      expect(result.extensionName).toBe('my-installed-ext');
-      expect(result.installPath).toContain('.pi-extensions');
-      expect(result.installPath).toContain('my-installed-ext');
-      expect(fs.existsSync(result.installPath)).toBe(true);
-      expect(fs.existsSync(path.join(result.installPath, 'package.json'))).toBe(true);
+      expect(result.entry).toBeDefined();
+      expect(result.entry!.name).toBe('test-ext');
+      expect(result.entry!.scope).toBe('user');
+      expect(result.entry!.enabled).toBe(true);
+      expect(fs.existsSync(result.entry!.vaultPath)).toBe(true);
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'package.json'))).toBe(true);
+
+      const registry = mgr.readRegistry('user');
+      expect(registry.extensions).toHaveLength(1);
+      expect(registry.extensions[0].name).toBe('test-ext');
     } finally {
       cleanup();
-      // Clean up install dir too
-      const installDir = path.join(os.homedir(), '.pi-extensions', 'my-installed-ext');
-      if (fs.existsSync(installDir)) {
-        fs.rmSync(installDir, { recursive: true, force: true });
-      }
     }
   });
 
-  it('replaces existing installation', () => {
-    const { dir, cleanup } = createTestPackage({ name: 'replace-test' });
-    const installDir = path.join(os.homedir(), '.pi-extensions', 'replace-test');
+  it('installs an extension to the project vault', () => {
+    const mgr = projectManager();
+    const { dir, cleanup } = createTestPackage({ name: 'proj-ext' });
     try {
-      const validation = makePassValidation(dir, 'replace-test');
+      const result = mgr.install(dir, 'project');
 
-      // First install
-      const firstResult = runDeterministicInstall({ sourcePath: dir, validation });
-      expect(firstResult.success).toBe(true);
-
-      // Mark the installed copy with a marker
-      const markerPath = path.join(installDir, 'MARKER');
-      fs.writeFileSync(markerPath, 'original');
-
-      // Second install should replace
-      const secondResult = runDeterministicInstall({ sourcePath: dir, validation });
-      expect(secondResult.success).toBe(true);
-      // The marker should be gone (fresh copy)
-      expect(fs.existsSync(markerPath)).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.entry!.vaultPath).toContain('extension-manager');
+      expect(result.entry!.scope).toBe('project');
+      expect(fs.existsSync(result.entry!.vaultPath)).toBe(true);
     } finally {
       cleanup();
-      if (fs.existsSync(installDir)) {
-        fs.rmSync(installDir, { recursive: true, force: true });
-      }
     }
   });
 
-  it('uses validation packageName for install directory', () => {
-    const { dir, cleanup } = createTestPackage({ name: 'source-dir-name' });
-    const installDir = path.join(os.homedir(), '.pi-extensions', 'validated-name');
+  it('replaces an existing installation in the vault', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'replaced-ext' });
     try {
-      const result = runDeterministicInstall({
-        sourcePath: dir,
-        validation: {
-          status: 'pass',
-          packageName: 'validated-name',
-          errors: [],
-          warnings: [],
-          details: {
-            packagePath: dir,
-            manifestFound: true,
-            tsconfigFound: true,
-            compilerChecked: true,
-            notes: [],
-            entrypoint: 'src/extensions/validated-name/index.ts',
-            tsconfig: path.join(dir, 'tsconfig.json'),
-          },
-        },
-      });
+      const first = mgr.install(dir, 'user');
+      expect(first.success).toBe(true);
 
-      expect(result.success).toBe(true);
-      expect(result.extensionName).toBe('validated-name');
-      expect(result.installPath).toContain('validated-name');
-      expect(fs.existsSync(installDir)).toBe(true);
+      const marker = path.join(first.entry!.vaultPath, 'MARKER');
+      fs.writeFileSync(marker, 'original');
+
+      const second = mgr.install(dir, 'user');
+      expect(second.success).toBe(true);
+      expect(fs.existsSync(marker)).toBe(false);
     } finally {
       cleanup();
-      if (fs.existsSync(installDir)) {
-        fs.rmSync(installDir, { recursive: true, force: true });
-      }
+    }
+  });
+
+  it('fails when source path does not exist', () => {
+    const mgr = userManager();
+    const result = mgr.install('/tmp/nonexistent-path-xyz-999', 'user');
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('does not exist');
+  });
+});
+
+// ── ExtensionManager.enable / disable ────────────────────────────────
+
+describe('ExtensionManager.enable / disable', () => {
+  it('toggles an extension', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'togglable' });
+    try {
+      mgr.install(dir, 'user');
+
+      const disabled = mgr.disable('togglable', 'user');
+      expect(disabled.success).toBe(true);
+      expect(disabled.entry!.enabled).toBe(false);
+
+      const enabled = mgr.enable('togglable', 'user');
+      expect(enabled.success).toBe(true);
+      expect(enabled.entry!.enabled).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('returns success when toggling already-target state', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'already' });
+    try {
+      mgr.install(dir, 'user');
+
+      expect(mgr.enable('already', 'user').message).toContain('already enabled');
+      expect(mgr.disable('already', 'user').success).toBe(true);
+      expect(mgr.disable('already', 'user').message).toContain('already disabled');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('fails for unknown extension', () => {
+    const mgr = userManager();
+    const r = mgr.enable('nonexistent', 'user');
+    expect(r.success).toBe(false);
+    expect(r.message).toContain('not found');
+  });
+});
+
+// ── ExtensionManager.uninstall ───────────────────────────────────────
+
+describe('ExtensionManager.uninstall', () => {
+  it('removes extension from vault and registry', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'gone-soon' });
+    try {
+      mgr.install(dir, 'user');
+
+      const result = mgr.uninstall('gone-soon', 'user');
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(result.entry!.vaultPath)).toBe(false);
+
+      const registry = mgr.readRegistry('user');
+      expect(registry.extensions.find(e => e.name === 'gone-soon')).toBeUndefined();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('fails for unknown extension', () => {
+    const mgr = userManager();
+    const result = mgr.uninstall('nope', 'user');
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('not found');
+  });
+});
+
+// ── ExtensionManager.list ────────────────────────────────────────────
+
+describe('ExtensionManager.list', () => {
+  it('lists extensions for user scope', () => {
+    const mgr = userManager();
+    const { dir: d1, cleanup: c1 } = createTestPackage({ name: 'ext-a' });
+    const { dir: d2, cleanup: c2 } = createTestPackage({ name: 'ext-b' });
+    try {
+      mgr.install(d1, 'user');
+      mgr.install(d2, 'user');
+
+      const list = mgr.list('user');
+      expect(list).toHaveLength(2);
+      expect(list.map(e => e.name).sort()).toEqual(['ext-a', 'ext-b']);
+    } finally {
+      c1(); c2();
+    }
+  });
+
+  it('lists project scope independently of user scope', () => {
+    const mgr = bothManagers();
+    const { dir: d1, cleanup: c1 } = createTestPackage({ name: 'ext-u' });
+    const { dir: d2, cleanup: c2 } = createTestPackage({ name: 'ext-p' });
+    try {
+      mgr.user.install(d1, 'user');
+      mgr.project.install(d2, 'project');
+
+      expect(mgr.user.list('user')).toHaveLength(1);
+      expect(mgr.user.list('user')[0].name).toBe('ext-u');
+
+      expect(mgr.project.list('project')).toHaveLength(1);
+      expect(mgr.project.list('project')[0].name).toBe('ext-p');
+    } finally {
+      c1(); c2();
+    }
+  });
+
+  it('returns empty array when no extensions', () => {
+    const mgr = userManager();
+    expect(mgr.list('user')).toEqual([]);
+  });
+});
+
+// ── ExtensionManager.checkModified ───────────────────────────────────
+
+describe('ExtensionManager.checkModified', () => {
+  it('detects changes after install', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'fresh' });
+    try {
+      const before = Date.now() - 10000;
+      expect(mgr.checkModified('user', before)).toBe(false);
+
+      mgr.install(dir, 'user');
+      expect(mgr.checkModified('user', before)).toBe(true);
+      expect(mgr.checkModified('user', mgr.lastModified('user'))).toBe(false);
+    } finally {
+      cleanup();
     }
   });
 });
