@@ -5,7 +5,7 @@ declare module '@mariozechner/pi-ai' {
   export const Type: any;
 }
 
-declare module '@mariozechner/pi-coding-agent' {
+declare module '@earendil-works/pi-coding-agent' {
   export interface ExtensionAPI {
     registerTool(tool: any): void;
     on(event: string, handler: (...args: any[]) => any): void;

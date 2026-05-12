@@ -34,13 +34,14 @@
     "validate:src": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*"
   },
   "simple-git-hooks": {
     "pre-commit": "npm run precommit"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.74.0",
     "@types/node": "^20.19.40",
     "@vitest/coverage-v8": "^4.1.5",
     "simple-git-hooks": "^2.13.1",

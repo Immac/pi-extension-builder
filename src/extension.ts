@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Type } from '@mariozechner/pi-ai';
 import os from 'node:os';
-import { defineTool, type ExtensionAPI } from '@mariozechner/pi-coding-agent';
+import { defineTool, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { validateExtensionProject } from './validator';
 import { runDeterministicInstall, installExtension, uninstallExtension, enableExtension, disableExtension } from './installer';
 import type { ValidationResult, Scope } from './types';
