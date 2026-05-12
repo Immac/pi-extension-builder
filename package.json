@@ -29,7 +29,7 @@
     "test:coverage": "vitest run --coverage",
     "postinstall": "npx simple-git-hooks 2>/dev/null || true",
     "precommit": "npm run validate:src && npm test",
-    "bootstrap": "npm run build && node dist/cli.js bootstrap",
+    "bootstrap": "bash scripts/bootstrap.sh",
     "self-install": "npm run build && node dist/cli.js bootstrap",
     "validate:src": "tsc -p tsconfig.json --noEmit"
   },

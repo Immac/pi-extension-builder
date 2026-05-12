@@ -29,9 +29,8 @@ A lifecycle manager for pi.dev extensions — validate, install, enable/disable,
 ### Install the extension-creator itself
 
 ```bash
-# From the extension-creator directory
-npm run build
-pi-extension-creator bootstrap
+# From the extension-creator directory — builds, installs into vault, verifies
+npm run bootstrap
 
 # Then /reload in pi
 ```
@@ -145,9 +144,13 @@ npm test               # Run vitest suite (51 tests)
 npm run test:watch     # Watch mode
 npm run test:coverage  # With coverage report
 npm run validate:src   # TypeScript type-check only
-npm run bootstrap      # Build + install self (user scope)
-npm run self-install   # Same as bootstrap
+npm run bootstrap      # Deterministic self-install: clean → build → vault install → verify
+npm run self-install   # Bootstrap via CLI (no verify step)
 ```
+
+## Project Skills
+
+- **deterministic-bootstrap** — `.pi/skills/deterministic-bootstrap/` — Tells the LLM to run `npm run bootstrap` to self-install the extension-creator.
 
 ## Resources
 
