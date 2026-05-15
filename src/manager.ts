@@ -56,19 +56,26 @@ export class ExtensionManager {
     // Ensure vault dirs
     fs.mkdirSync(path.join(vaultRoot, 'extensions'), { recursive: true });
 
-    // Remove existing if present (replace)
-    if (fs.existsSync(destDir)) {
+    // Resolve paths to detect self-install (source === destDir)
+    const resolvedSource = path.resolve(source);
+    const resolvedDest = path.resolve(destDir);
+    const isSelfInstall = resolvedSource === resolvedDest;
+
+    // Remove existing if present (replace) — skip if self-install
+    if (fs.existsSync(destDir) && !isSelfInstall) {
       fs.rmSync(destDir, { recursive: true, force: true });
     }
 
-    // Copy source → vault
-    try {
-      copyDirExcludingPi(source, destDir);
-    } catch (error) {
-      return {
-        success: false,
-        message: `Installation failed: ${error instanceof Error ? error.message : String(error)}`,
-      };
+    // Copy source → vault (skip if self-install — already in place)
+    if (!isSelfInstall) {
+      try {
+        copyDirExcludingPi(source, destDir);
+      } catch (error) {
+        return {
+          success: false,
+          message: `Installation failed: ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
     }
 
     // Build registry entry
@@ -304,10 +311,13 @@ function sanitizeExtensionName(name: string): void {
   }
 }
 
-// ── Utility: directory copy (excluding .pi) ──────────────────────────
+// ── Utility: directory copy (excluding .pi and node_modules) ─────────
 
 /** Error codes for permission/access failures that should be non-fatal. */
 const ACCESS_ERROR_CODES = new Set(['EACCES', 'EPERM', 'EBUSY']);
+
+/** Directories to always skip when copying extension source into the vault. */
+const SKIP_DIRS = new Set(['.pi', 'node_modules', '.bin']);
 
 function copyDirExcludingPi(src: string, dest: string): void {
   // Read source before creating dest — avoid leaving empty directories
@@ -329,7 +339,7 @@ function copyDirExcludingPi(src: string, dest: string): void {
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    if (entry.name === '.pi') continue;
+    if (SKIP_DIRS.has(entry.name)) continue;
 
     try {
       if (entry.isSymbolicLink()) {
@@ -342,9 +352,10 @@ function copyDirExcludingPi(src: string, dest: string): void {
           );
         }
         if (!realTarget.startsWith(resolvedSrc + path.sep)) {
-          throw new Error(
-            `Symlink "${entry.name}" points outside the source tree: ${realTarget}`,
+          console.warn(
+            `[extension-manager] Warning: skipping symlink "${entry.name}" (points outside source tree: ${realTarget})`,
           );
+          continue;
         }
         // Symlink within source tree — resolve to real path and follow
         const stat = fs.statSync(srcPath);

@@ -156,7 +156,7 @@ describe('ExtensionManager.install', () => {
     expect(result.message).toContain('does not exist');
   });
 
-  it('fails when source contains a symlink to a file outside the source tree', () => {
+  it('skips symlink to file outside the source tree (does not fail)', () => {
     const mgr = userManager();
     const { dir, cleanup } = createTestPackage({ name: 'ext-outside' });
     try {
@@ -171,8 +171,8 @@ describe('ExtensionManager.install', () => {
       );
 
       const result = mgr.install(dir, 'user');
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('outside the source tree');
+      // External symlinks are now skipped with a warning instead of failing
+      expect(result.success).toBe(true);
 
       // Cleanup external dir
       fs.rmSync(outsideDir, { recursive: true, force: true });
@@ -346,7 +346,7 @@ describe('ExtensionManager name sanitization', () => {
 // ── copyDirExcludingPi: Symlink traversal guard ────────────────────────────
 
 describe('copyDirExcludingPi symlink guard', () => {
-  it('rejects symlink to directory outside the source tree', () => {
+  it('skips symlink to directory outside the source tree (does not fail)', () => {
     const mgr = userManager();
     const { dir, cleanup } = createTestPackage({ name: 'ext-outside-dir' });
     try {
@@ -358,8 +358,9 @@ describe('copyDirExcludingPi symlink guard', () => {
       fs.symlinkSync(outsideDir, path.join(dir, 'external-dir'));
 
       const result = mgr.install(dir, 'user');
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('outside the source tree');
+      // External symlinks are now skipped with a warning instead of failing
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'external-dir'))).toBe(false);
 
       fs.rmSync(outsideDir, { recursive: true, force: true });
     } finally {
@@ -691,5 +692,68 @@ describe('repairSettings', () => {
     expect(fs.existsSync(settingsPath)).toBe(true);
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     expect(settings.packages).toHaveLength(1);
+  });
+});
+
+// ── Self-install protection ──────────────────────────────────────────
+
+describe('self-install protection', () => {
+  it('skips rm+copy when source equals destDir (same path)', () => {
+    const mgr = userManager();
+    // Create a temp "vault root" that IS the source
+    const { dir, cleanup } = createTestPackage({ name: 'self-install-test' });
+    try {
+      // Install to a vault that uses dir as its root
+      const selfMgr = new ExtensionManager({ userVaultRoot: path.dirname(dir) });
+      const result = selfMgr.install(dir, 'user');
+
+      expect(result.success).toBe(true);
+      // Source should still exist (wasn't wiped)
+      expect(fs.existsSync(dir)).toBe(true);
+      expect(fs.existsSync(path.join(dir, 'package.json'))).toBe(true);
+      expect(fs.existsSync(path.join(dir, 'tsconfig.json'))).toBe(true);
+
+      // Registry should have the entry
+      const registry = selfMgr.readRegistry('user');
+      expect(registry.extensions.some(e => e.name === 'self-install-test')).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('normal install still works (different paths)', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'normal-install' });
+    try {
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(true);
+      expect(result.entry!.vaultPath).not.toBe(dir);
+      expect(fs.existsSync(result.entry!.vaultPath)).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('skips node_modules during copy (external symlinks do not fail install)', () => {
+    const mgr = userManager();
+    const { dir, cleanup } = createTestPackage({ name: 'nm-test' });
+    try {
+      // Create a node_modules dir with an external symlink (simulates real install)
+      const nmDir = path.join(dir, 'node_modules', '@anthropic-ai', 'sdk', 'bin');
+      fs.mkdirSync(nmDir, { recursive: true });
+      // Symlink pointing outside the source tree
+      fs.symlinkSync('/usr/bin/env', path.join(nmDir, 'cli'));
+
+      const result = mgr.install(dir, 'user');
+      expect(result.success).toBe(true);
+
+      // node_modules should NOT be in the vault
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'node_modules'))).toBe(false);
+
+      // Other files are present
+      expect(fs.existsSync(path.join(result.entry!.vaultPath, 'package.json'))).toBe(true);
+    } finally {
+      cleanup();
+    }
   });
 });
